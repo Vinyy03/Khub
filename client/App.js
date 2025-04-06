@@ -1,23 +1,24 @@
 import React, { useEffect } from 'react';
-import { View, Button, StyleSheet, Text } from 'react-native';
+import { View, Button, StyleSheet, Text, Alert } from 'react-native';
 import { NavigationContainer } from '@react-navigation/native';
 import { createDrawerNavigator, DrawerContentScrollView, DrawerItemList } from '@react-navigation/drawer';
 import { createStackNavigator } from '@react-navigation/stack';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { CartProvider } from './screens/context/CartContext';
-import { Provider } from 'react-redux'; // Add this
-import store from './redux/store'; // Add this
-import { checkAuthStatus } from './redux/slices/authSlice'; // Add this
+import { Provider, useDispatch } from 'react-redux'; 
+import store from './redux/store'; 
+import { checkAuthStatus, logoutUser } from './redux/slices/authSlice'; // Added logoutUser import
+import { navigationRef } from './utils/axiosConfig'; // Import navigationRef
 
 // Regular user screens
 import HomeScreen from './screens/HomeScreen';
 import ProfileScreen from './screens/ProfileScreen';
 import LoginScreen from './screens/auth/LoginScreen';
 import RegistrationScreen from './screens/auth/RegistrationScreen';
-import CartScreen from './screens/components/CartScreen'; // Import CartScreen
+import CartScreen from './screens/components/CartScreen';
 import OrderHistory from './screens/OrderHistory';
 import ReviewScreen from './screens/Review';
-import ProductDetailScreen from './screens/components/ProductDetailScreen'; // Import ProductDetailScreen
+import ProductDetailScreen from './screens/components/ProductDetailScreen';
 
 // Admin screens
 import AdminDashboardScreen from './screens/admin/AdminDashboardScreen';
@@ -36,6 +37,33 @@ const Stack = createStackNavigator();
 
 // Regular user drawer content
 function CustomDrawerContent(props) {
+  const dispatch = useDispatch();
+
+  const handleLogout = () => {
+    Alert.alert(
+      "Logout",
+      "Are you sure you want to logout?",
+      [
+        {
+          text: "Cancel",
+          style: "cancel"
+        },
+        {
+          text: "Logout",
+          onPress: () => {
+            dispatch(logoutUser())
+              .then(() => {
+                props.navigation.reset({
+                  index: 0,
+                  routes: [{ name: 'Login' }],
+                });
+              });
+          }
+        }
+      ]
+    );
+  };
+
   return (
     <DrawerContentScrollView {...props} contentContainerStyle={{ flex: 1 }}>
       <View style={{ flex: 1 }}>
@@ -44,9 +72,7 @@ function CustomDrawerContent(props) {
       <View style={styles.logoutButtonContainer}>
         <Button
           title="Logout"
-          onPress={() => {
-            props.navigation.navigate('Login');
-          }}
+          onPress={handleLogout}
         />
       </View>
     </DrawerContentScrollView>
@@ -55,6 +81,33 @@ function CustomDrawerContent(props) {
 
 // Admin drawer content
 function AdminDrawerContent(props) {
+  const dispatch = useDispatch();
+
+  const handleLogout = () => {
+    Alert.alert(
+      "Logout",
+      "Are you sure you want to logout?",
+      [
+        {
+          text: "Cancel",
+          style: "cancel"
+        },
+        {
+          text: "Logout",
+          onPress: () => {
+            dispatch(logoutUser())
+              .then(() => {
+                props.navigation.reset({
+                  index: 0,
+                  routes: [{ name: 'Login' }],
+                });
+              });
+          }
+        }
+      ]
+    );
+  };
+
   return (
     <DrawerContentScrollView {...props} contentContainerStyle={{ flex: 1 }}>
       <View style={styles.adminHeader}>
@@ -66,9 +119,7 @@ function AdminDrawerContent(props) {
       <View style={styles.logoutButtonContainer}>
         <Button 
           title="Logout" 
-          onPress={() => {
-            props.navigation.navigate('Login');
-          }} 
+          onPress={handleLogout} 
         />
       </View>
     </DrawerContentScrollView>
@@ -129,40 +180,40 @@ const AppContent = () => {
   }, []);
 
   return (
-    <CartProvider> {/* Keep your CartProvider */}
-      <NavigationContainer>
+    <CartProvider>
+      {/* Connect the navigationRef to enable navigation outside of components */}
+      <NavigationContainer ref={navigationRef}>
         <Stack.Navigator initialRouteName="Login">
-          {/* All your screens remain the same */}
           <Stack.Screen
             name="Login"
             component={LoginScreen}
             options={{ headerShown: false }}
           />
           <Stack.Screen
-          name="Register"
-          component={RegistrationScreen}
-          options={{ headerShown: false }}
-        />
-        <Stack.Screen
-          name="Main"
-          component={DrawerNavigator}
-          options={{ headerShown: false }}
-        />
-        <Stack.Screen
-          name="AdminPanel"
-          component={AdminDrawerNavigator}
-          options={{ headerShown: false }}
-        />
-        <Stack.Screen
-          name="ProductDetail"
-          component={ProductDetailScreen}
-          options={({ route }) => ({ title: route.params.product.name })}
-        />
-        <Stack.Screen
-          name="Cart"
-          component={CartScreen}
-          options={{ title: 'Your Cart' }}
-        />
+            name="Register"
+            component={RegistrationScreen}
+            options={{ headerShown: false }}
+          />
+          <Stack.Screen
+            name="Main"
+            component={DrawerNavigator}
+            options={{ headerShown: false }}
+          />
+          <Stack.Screen
+            name="AdminPanel"
+            component={AdminDrawerNavigator}
+            options={{ headerShown: false }}
+          />
+          <Stack.Screen
+            name="ProductDetail"
+            component={ProductDetailScreen}
+            options={({ route }) => ({ title: route.params.product.name })}
+          />
+          <Stack.Screen
+            name="Cart"
+            component={CartScreen}
+            options={{ title: 'Your Cart' }}
+          />
         </Stack.Navigator>
       </NavigationContainer>
     </CartProvider>

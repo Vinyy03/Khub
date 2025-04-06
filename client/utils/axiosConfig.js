@@ -1,6 +1,10 @@
 import axios from 'axios';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { API_URL } from '@env';
+import { createNavigationContainerRef } from '@react-navigation/native';
+
+// Create a navigation reference to use outside of components
+export const navigationRef = createNavigationContainerRef();
 
 const baseURL = API_URL || 'http://192.168.1.64:5000';
 
@@ -27,14 +31,35 @@ axiosInstance.interceptors.request.use(
 );
 
 // Response interceptor for handling common errors
+let isLogoutProcessing = false;
+
 axiosInstance.interceptors.response.use(
   (response) => response,
-  (error) => {
+  async (error) => {
     // Handle unauthorized errors (token expired)
-    if (error.response && error.response.status === 401) {
-      // You can dispatch logout action here if you have access to store
-      AsyncStorage.removeItem('token');
-      AsyncStorage.removeItem('user');
+    if (error.response && error.response.status === 401 && !isLogoutProcessing) {
+      isLogoutProcessing = true;
+      
+      // Clear stored credentials
+      try {
+        await AsyncStorage.removeItem('token');
+        await AsyncStorage.removeItem('user');
+        
+        // If navigation reference is ready, navigate to login
+        if (navigationRef.isReady()) {
+          navigationRef.reset({
+            index: 0,
+            routes: [{ name: 'Login' }],
+          });
+        }
+        
+        // If using Redux, you could dispatch logout here if you had store access
+        // But this should be handled by the auto-redirect and the missing token
+      } catch (err) {
+        console.error('Error during logout:', err);
+      } finally {
+        isLogoutProcessing = false;
+      }
     }
     return Promise.reject(error);
   }

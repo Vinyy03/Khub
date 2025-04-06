@@ -1,18 +1,62 @@
-import React, { useState } from 'react';
-import { View, Text, StyleSheet, Image, TouchableOpacity, TextInput, ScrollView } from 'react-native';
+import React, { useState, useEffect } from 'react';
+import { 
+  View, Text, StyleSheet, Image, TouchableOpacity, 
+  TextInput, ScrollView, Alert, ActivityIndicator 
+} from 'react-native';
+import { useSelector, useDispatch } from 'react-redux';
+import { logoutUser, updateUserProfile, clearError } from '../redux/slices/authSlice';
+import { useNavigation } from '@react-navigation/native';
 
 const ProfileScreen = () => {
+  const dispatch = useDispatch();
+  const navigation = useNavigation();
+  const { user, isLoading, error } = useSelector((state) => state.auth);
   const [isEditing, setIsEditing] = useState(false);
+  
+  // State for user data
   const [userData, setUserData] = useState({
-    username: 'Mikha Lim',
-    email: 'johndoe@example.com',
-    password: '********',
-    address: '123 Main Street, City, Country',
-    phone: '+1234567890',
-    country: 'United States',
+    username: user?.username || 'User',
+    email: user?.email || 'email@example.com',
+    address: user?.address || '',
+    phone: user?.phone || '',
+    country: user?.country || '',
   });
+  
+  // State for password change
+  const [passwordData, setPasswordData] = useState({
+    currentPassword: '',
+    newPassword: '',
+    confirmPassword: '',
+  });
+  
+  // State to track if user wants to change password
+  const [changingPassword, setChangingPassword] = useState(false);
+
+  // Handle error messages
+  useEffect(() => {
+    if (error) {
+      Alert.alert('Error', error);
+      dispatch(clearError());
+    }
+  }, [error, dispatch]);
 
   const toggleEditMode = () => {
+    if (isEditing) {
+      // Reset form if canceling edit
+      setUserData({
+        username: user?.username || 'User',
+        email: user?.email || 'email@example.com',
+        address: user?.address || '',
+        phone: user?.phone || '',
+        country: user?.country || '',
+      });
+      setPasswordData({
+        currentPassword: '',
+        newPassword: '',
+        confirmPassword: '',
+      });
+      setChangingPassword(false);
+    }
     setIsEditing(!isEditing);
   };
 
@@ -20,9 +64,103 @@ const ProfileScreen = () => {
     setUserData({ ...userData, [field]: value });
   };
 
+  const handlePasswordInputChange = (field, value) => {
+    setPasswordData({ ...passwordData, [field]: value });
+  };
+
+  const togglePasswordChange = () => {
+    setChangingPassword(!changingPassword);
+    if (!changingPassword) {
+      setPasswordData({
+        currentPassword: '',
+        newPassword: '',
+        confirmPassword: '',
+      });
+    }
+  };
+
+  const validateData = () => {
+    if (!userData.username.trim()) {
+      Alert.alert('Error', 'Username cannot be empty');
+      return false;
+    }
+    
+    if (changingPassword) {
+      if (!passwordData.currentPassword) {
+        Alert.alert('Error', 'Current password is required');
+        return false;
+      }
+      
+      if (!passwordData.newPassword) {
+        Alert.alert('Error', 'New password is required');
+        return false;
+      }
+      
+      if (passwordData.newPassword !== passwordData.confirmPassword) {
+        Alert.alert('Error', 'New passwords do not match');
+        return false;
+      }
+      
+      if (passwordData.newPassword.length < 6) {
+        Alert.alert('Error', 'Password must be at least 6 characters');
+        return false;
+      }
+    }
+    
+    return true;
+  };
+
   const saveChanges = () => {
-    // Logic to save changes (e.g., API call)
-    setIsEditing(false);
+    if (!validateData()) return;
+    
+    const updateData = {
+      username: userData.username,
+      address: userData.address,
+      phone: userData.phone,
+      country: userData.country,
+    };
+    
+    // Add password data if changing password
+    if (changingPassword) {
+      updateData.currentPassword = passwordData.currentPassword;
+      updateData.newPassword = passwordData.newPassword;
+    }
+    
+    dispatch(updateUserProfile(updateData))
+      .unwrap()
+      .then(() => {
+        setIsEditing(false);
+        setChangingPassword(false);
+        Alert.alert('Success', 'Profile updated successfully');
+      })
+      .catch(() => {
+        // Error is handled by the useEffect
+      });
+  };
+
+  const handleLogout = () => {
+    Alert.alert(
+      "Logout",
+      "Are you sure you want to logout?",
+      [
+        {
+          text: "Cancel",
+          style: "cancel"
+        },
+        {
+          text: "Logout",
+          onPress: () => {
+            dispatch(logoutUser())
+              .then(() => {
+                navigation.reset({
+                  index: 0,
+                  routes: [{ name: 'Login' }],
+                });
+              });
+          }
+        }
+      ]
+    );
   };
 
   return (
@@ -31,7 +169,7 @@ const ProfileScreen = () => {
         {/* Header Section */}
         <View style={styles.header}>
           <Image
-            source={{ uri: 'https://pbs.twimg.com/media/GQwIdXhbEAAswfu.jpg:large' }} // Replace with actual profile image URL
+            source={{ uri: 'https://pbs.twimg.com/media/GQwIdXhbEAAswfu.jpg:large' }}
             style={styles.profileImage}
           />
           <Text style={styles.headerTitle}>My Account</Text>
@@ -39,15 +177,15 @@ const ProfileScreen = () => {
 
         {/* Profile Fields */}
         <View style={styles.fieldsContainer}>
+          {/* Regular fields */}
           {Object.keys(userData).map((field) => (
             <View key={field} style={styles.field}>
               <Text style={styles.label}>{field.charAt(0).toUpperCase() + field.slice(1)}</Text>
-              {isEditing ? (
+              {isEditing && field !== 'email' ? (
                 <TextInput
                   style={styles.input}
                   value={userData[field]}
                   onChangeText={(value) => handleInputChange(field, value)}
-                  secureTextEntry={field === 'password'}
                   editable={field !== 'email'} // Email is typically not editable
                 />
               ) : (
@@ -55,21 +193,82 @@ const ProfileScreen = () => {
               )}
             </View>
           ))}
+          
+          {/* Password change section */}
+          {isEditing && (
+            <View style={styles.passwordSection}>
+              <TouchableOpacity onPress={togglePasswordChange} style={styles.passwordToggle}>
+                <Text style={styles.passwordToggleText}>
+                  {changingPassword ? '- Cancel Password Change' : '+ Change Password'}
+                </Text>
+              </TouchableOpacity>
+              
+              {changingPassword && (
+                <>
+                  <View style={styles.field}>
+                    <Text style={styles.label}>Current Password</Text>
+                    <TextInput
+                      style={styles.input}
+                      value={passwordData.currentPassword}
+                      onChangeText={(value) => handlePasswordInputChange('currentPassword', value)}
+                      secureTextEntry
+                      placeholder="Enter current password"
+                    />
+                  </View>
+                  
+                  <View style={styles.field}>
+                    <Text style={styles.label}>New Password</Text>
+                    <TextInput
+                      style={styles.input}
+                      value={passwordData.newPassword}
+                      onChangeText={(value) => handlePasswordInputChange('newPassword', value)}
+                      secureTextEntry
+                      placeholder="Enter new password"
+                    />
+                  </View>
+                  
+                  <View style={styles.field}>
+                    <Text style={styles.label}>Confirm New Password</Text>
+                    <TextInput
+                      style={styles.input}
+                      value={passwordData.confirmPassword}
+                      onChangeText={(value) => handlePasswordInputChange('confirmPassword', value)}
+                      secureTextEntry
+                      placeholder="Confirm new password"
+                    />
+                  </View>
+                </>
+              )}
+            </View>
+          )}
         </View>
       </ScrollView>
 
       {/* Buttons at the Bottom */}
       <View style={styles.buttonsContainer}>
         {isEditing ? (
-          <TouchableOpacity style={styles.saveButton} onPress={saveChanges}>
-            <Text style={styles.buttonText}>Save Changes</Text>
-          </TouchableOpacity>
+          <>
+            <TouchableOpacity 
+              style={styles.saveButton} 
+              onPress={saveChanges}
+              disabled={isLoading}
+            >
+              {isLoading ? (
+                <ActivityIndicator color="#fff" size="small" />
+              ) : (
+                <Text style={styles.buttonText}>Save Changes</Text>
+              )}
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.cancelButton} onPress={toggleEditMode}>
+              <Text style={styles.buttonText}>Cancel</Text>
+            </TouchableOpacity>
+          </>
         ) : (
           <TouchableOpacity style={styles.editButton} onPress={toggleEditMode}>
             <Text style={styles.buttonText}>Edit Profile</Text>
           </TouchableOpacity>
         )}
-        <TouchableOpacity style={styles.logoutButton}>
+        <TouchableOpacity style={styles.logoutButton} onPress={handleLogout}>
           <Text style={styles.logoutButtonText}>Log Out</Text>
         </TouchableOpacity>
       </View>
@@ -140,6 +339,20 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: '#333',
   },
+  passwordSection: {
+    marginTop: 20,
+    borderTopWidth: 1,
+    borderTopColor: '#eee',
+    paddingTop: 15,
+  },
+  passwordToggle: {
+    marginBottom: 15,
+  },
+  passwordToggleText: {
+    color: '#007BFF',
+    fontSize: 16,
+    fontWeight: '500',
+  },
   buttonsContainer: {
     paddingHorizontal: 20,
     paddingVertical: 10,
@@ -156,6 +369,13 @@ const styles = StyleSheet.create({
   },
   saveButton: {
     backgroundColor: '#28A745',
+    padding: 15,
+    borderRadius: 10,
+    alignItems: 'center',
+    marginBottom: 10,
+  },
+  cancelButton: {
+    backgroundColor: '#6c757d',
     padding: 15,
     borderRadius: 10,
     alignItems: 'center',

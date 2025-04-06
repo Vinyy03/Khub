@@ -2,24 +2,48 @@ import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
 import axios from 'axios';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { API_URL } from '@env';
+import axiosInstance from '../../utils/axiosConfig';
 
 // Base URL from environment variable
 const baseURL = API_URL || 'http://192.168.1.64:5000';
 
-// Async thunks for authentication actions
+// Update the registerUser function
+export const registerUser = createAsyncThunk(
+  'auth/register',
+  async ({ username, email, password, address, phone, country }, { rejectWithValue }) => {
+    try {
+      const response = await axiosInstance.post('/api/v1/auth/register', {
+        username,
+        email,
+        password,
+        address,
+        phone,
+        country
+      });
+
+      return response.data;
+    } catch (error) {
+      return rejectWithValue(
+        error.response?.data?.message || 'Registration failed. Please try again.'
+      );
+    }
+  }
+);
+
+// Also update the loginUser function to use axiosInstance
 export const loginUser = createAsyncThunk(
   'auth/login',
   async ({ email, password }, { rejectWithValue }) => {
     try {
-      const response = await axios.post(`${baseURL}/api/v1/auth/login`, {
+      const response = await axiosInstance.post('/api/v1/auth/login', {
         email,
         password
       });
-      
+
       // Store token in AsyncStorage for persistence
       await AsyncStorage.setItem('token', response.data.token);
       await AsyncStorage.setItem('user', JSON.stringify(response.data.data));
-      
+
       return response.data;
     } catch (error) {
       return rejectWithValue(
@@ -29,20 +53,19 @@ export const loginUser = createAsyncThunk(
   }
 );
 
-export const registerUser = createAsyncThunk(
-  'auth/register',
-  async ({ username, email, password }, { rejectWithValue }) => {
+export const updateUserProfile = createAsyncThunk(
+  'auth/updateProfile',
+  async (userData, { rejectWithValue }) => {
     try {
-      const response = await axios.post(`${baseURL}/api/v1/auth/register`, {
-        username,
-        email,
-        password
-      });
-      
+      const response = await axiosInstance.put('/api/v1/auth/update-profile', userData);
+
+      // Update the stored user data
+      await AsyncStorage.setItem('user', JSON.stringify(response.data.data));
+
       return response.data;
     } catch (error) {
       return rejectWithValue(
-        error.response?.data?.message || 'Registration failed. Please try again.'
+        error.response?.data?.message || 'Failed to update profile. Please try again.'
       );
     }
   }
@@ -55,14 +78,14 @@ export const checkAuthStatus = createAsyncThunk(
     try {
       const token = await AsyncStorage.getItem('token');
       const userData = await AsyncStorage.getItem('user');
-      
+
       if (token && userData) {
         return {
           token,
           data: JSON.parse(userData)
         };
       }
-      
+
       return null;
     } catch (error) {
       return rejectWithValue('Failed to restore authentication state');
@@ -116,7 +139,7 @@ const authSlice = createSlice({
         state.isLoading = false;
         state.error = action.payload;
       })
-      
+
       // Register cases
       .addCase(registerUser.pending, (state) => {
         state.isLoading = true;
@@ -129,7 +152,19 @@ const authSlice = createSlice({
         state.isLoading = false;
         state.error = action.payload;
       })
-      
+      .addCase(updateUserProfile.pending, (state) => {
+        state.isLoading = true;
+        state.error = null;
+      })
+      .addCase(updateUserProfile.fulfilled, (state, action) => {
+        state.isLoading = false;
+        state.user = action.payload.data;
+      })
+      .addCase(updateUserProfile.rejected, (state, action) => {
+        state.isLoading = false;
+        state.error = action.payload;
+      })
+
       // Check auth status cases
       .addCase(checkAuthStatus.fulfilled, (state, action) => {
         if (action.payload) {
@@ -139,7 +174,7 @@ const authSlice = createSlice({
           state.isAdmin = action.payload.data.isAdmin;
         }
       })
-      
+
       // Logout case
       .addCase(logoutUser.fulfilled, (state) => {
         state.user = null;
