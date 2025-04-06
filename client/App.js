@@ -5,8 +5,8 @@ import { createDrawerNavigator, DrawerContentScrollView, DrawerItemList } from '
 import { createStackNavigator } from '@react-navigation/stack';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { CartProvider } from './screens/context/CartContext';
-import { Provider, useDispatch } from 'react-redux'; 
-import store from './redux/store'; 
+import { Provider, useDispatch } from 'react-redux';
+import store from './redux/store';
 import { checkAuthStatus, logoutUser } from './redux/slices/authSlice'; // Added logoutUser import
 import { navigationRef } from './utils/axiosConfig'; // Import navigationRef
 
@@ -19,6 +19,7 @@ import CartScreen from './screens/components/CartScreen';
 import OrderHistory from './screens/OrderHistory';
 import ReviewScreen from './screens/Review';
 import ProductDetailScreen from './screens/components/ProductDetailScreen';
+import CheckoutScreen from './screens/components/CheckoutScreen';
 
 // Admin screens
 import AdminDashboardScreen from './screens/admin/AdminDashboardScreen';
@@ -117,9 +118,9 @@ function AdminDrawerContent(props) {
         <DrawerItemList {...props} />
       </View>
       <View style={styles.logoutButtonContainer}>
-        <Button 
-          title="Logout" 
-          onPress={handleLogout} 
+        <Button
+          title="Logout"
+          onPress={handleLogout}
         />
       </View>
     </DrawerContentScrollView>
@@ -207,12 +208,17 @@ const AppContent = () => {
           <Stack.Screen
             name="ProductDetail"
             component={ProductDetailScreen}
-            options={({ route }) => ({ title: route.params.product.name })}
+            options={{ headerShown: true, title: 'Product Details' }}
           />
           <Stack.Screen
             name="Cart"
             component={CartScreen}
             options={{ title: 'Your Cart' }}
+          />
+          <Stack.Screen
+            name="Checkout"
+            component={CheckoutScreen}
+            options={{ title: 'Checkout' }}
           />
         </Stack.Navigator>
       </NavigationContainer>

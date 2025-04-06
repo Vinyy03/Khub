@@ -19,6 +19,7 @@
     "axios": "^1.8.4",
     "cloudinary": "^2.6.0",
     "cloudinary-core": "^2.13.1",
+    "date-fns": "^4.1.0",
     "expo": "~52.0.43",
     "expo-image-manipulator": "~13.0.6",
     "expo-image-picker": "^16.0.6",

@@ -1,54 +1,79 @@
-import React, { createContext, useState, useContext } from 'react';
+import React, { createContext, useContext, useState } from 'react';
 
 const CartContext = createContext();
+
+export const useCart = () => useContext(CartContext);
 
 export const CartProvider = ({ children }) => {
   const [cartItems, setCartItems] = useState([]);
 
+  // Add to cart with unique ID for each cart item
   const addToCart = (product) => {
-    setCartItems((prevItems) => {
-      const existingItem = prevItems.find((item) => item.id === product.id);
-      if (existingItem) {
-        return prevItems.map((item) =>
-          item.id === product.id
-            ? { ...item, quantity: item.quantity + product.quantity }
-            : item
-        );
+    setCartItems(prevItems => {
+      // Check if product already exists in cart
+      const existingItemIndex = prevItems.findIndex(
+        item => item._id === product._id
+      );
+
+      if (existingItemIndex >= 0) {
+        // Update quantity if product already exists
+        const newItems = [...prevItems];
+        newItems[existingItemIndex] = {
+          ...newItems[existingItemIndex],
+          quantity: newItems[existingItemIndex].quantity + product.quantity
+        };
+        return newItems;
       } else {
-        return [...prevItems, { ...product, quantity: product.quantity }];
+        // Add new product with a unique cart item ID
+        return [...prevItems, {
+          ...product,
+          cartItemId: `${product._id}-${Date.now()}` // Create unique ID
+        }];
       }
     });
   };
 
-  const increaseQuantity = (id) => {
-    setCartItems((prevItems) =>
-      prevItems.map((item) =>
-        item.id === id ? { ...item, quantity: item.quantity + 1 } : item
+  // Increase quantity of item in cart
+  const increaseQuantity = (itemId) => {
+    setCartItems(prevItems =>
+      prevItems.map(item =>
+        (item.cartItemId === itemId || item._id === itemId)
+          ? { ...item, quantity: item.quantity + 1 }
+          : item
       )
     );
   };
 
-  const decreaseQuantity = (id) => {
-    setCartItems((prevItems) =>
-      prevItems.map((item) =>
-        item.id === id && item.quantity > 1
+  // Decrease quantity of item in cart
+  const decreaseQuantity = (itemId) => {
+    setCartItems(prevItems =>
+      prevItems.map(item =>
+        (item.cartItemId === itemId || item._id === itemId) && item.quantity > 1
           ? { ...item, quantity: item.quantity - 1 }
           : item
       )
     );
   };
 
-  const deleteProduct = (id) => {
-    setCartItems((prevItems) => prevItems.filter((item) => item.id !== id));
+  // Delete item from cart
+  const deleteProduct = (itemId) => {
+    setCartItems(prevItems =>
+      prevItems.filter(item => item.cartItemId !== itemId && item._id !== itemId)
+    );
   };
-
+  const clearCart = () => {
+    setCartItems([]);
+  };
   return (
-    <CartContext.Provider
-      value={{ cartItems, addToCart, increaseQuantity, decreaseQuantity, deleteProduct }}
-    >
+    <CartContext.Provider value={{
+      cartItems,
+      addToCart,
+      increaseQuantity,
+      decreaseQuantity,
+      deleteProduct,
+      clearCart,
+    }}>
       {children}
     </CartContext.Provider>
   );
 };
-
-export const useCart = () => useContext(CartContext);

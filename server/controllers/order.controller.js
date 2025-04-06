@@ -2,45 +2,51 @@ const Order = require("../models/order.model.js");
 
 
 const createOrder = async (req, res) => {
-
     try {
-        const newOrder = new Order(req.body);
-        await newOrder.save();
-        res.status(200).json({
-            message: "Order created successfully",
-            newOrder,
-        });
-    } catch (error) {
-        console.log(error);
-        res.status(500).json({
-            message: "Error creating Order",
-            error: error.message,
-        });
-    }
-};
-
-const updateOrder = async (req, res) => {
-    try {
-        const updatedOrder = await Order.findByIdAndUpdate(
-            req.params.id, 
-        {
-            $set: req.body,
-        },
-        {
-            new: true,
+        // Extract user ID from JWT token
+        const userId = req.user.userId;
+        
+        // Get order data from request body
+        const { items, amount, address, paymentMethod } = req.body;
+        
+        // Validate input
+        if (!items || !Array.isArray(items) || items.length === 0) {
+            return res.status(400).json({ message: "Order must contain items" });
         }
-    );
-    res.status(200).json({
-        message: "Order updated successfully",
-        updatedCart,
-    })
-    } catch (error) {
-        console.log(error);
-        res.status(500).json({
-            message: "Error updating Order",
-            error: error.message,
+        
+        if (!amount || amount <= 0) {
+            return res.status(400).json({ message: "Invalid order amount" });
+        }
+        
+        if (!address) {
+            return res.status(400).json({ message: "Shipping address is required" });
+        }
+        
+        // Create new order
+        const newOrder = new Order({
+            userId,
+            items,
+            amount,
+            address,
+            paymentMethod: paymentMethod || 'cash',
+            status: 'pending'
         });
         
+        // Save the order
+        await newOrder.save();
+        
+        res.status(201).json({
+            success: true,
+            message: "Order created successfully",
+            order: newOrder
+        });
+    } catch (error) {
+        console.error("Error creating order:", error);
+        res.status(500).json({
+            success: false,
+            message: "Error creating order",
+            error: error.message
+        });
     }
 };
 
@@ -61,21 +67,28 @@ const deleteOrder = async (req, res) => {
     }
 };
 
+// Update getUserOrder function
 const getUserOrder = async (req, res) => {
     try {
-        const order = await Order.findOne({userId: req.params.id});
-        res.status(200).json({
-            message: "Order fetched successfully",
-            order,
-        });
+      // Get the user ID from the authenticated request
+      const userId = req.user.userId;
+      
+      // Find all orders for this user
+      const orders = await Order.find({ userId }).sort({ createdAt: -1 });
+      
+      // Return the orders
+      res.status(200).json({
+        message: "Orders retrieved successfully",
+        orders: orders
+      });
     } catch (error) {
-        console.error(error);
-        res.status(500).json({
-            message: "Error fetching Order",
-            error: error.message,
-        });
+      console.error("Error fetching user orders:", error);
+      res.status(500).json({
+        message: "Error fetching orders",
+        error: error.message
+      });
     }
-};
+  };
 
 const getOrders = async (req, res) => {
     try {
@@ -135,7 +148,6 @@ const getMonthlyIncome = async (req, res) => {
 
 module.exports = {
     createOrder,
-    updateOrder,
     deleteOrder,
     getUserOrder,
     getOrders,
