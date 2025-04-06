@@ -1,10 +1,13 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { View, Button, StyleSheet, Text } from 'react-native';
 import { NavigationContainer } from '@react-navigation/native';
 import { createDrawerNavigator, DrawerContentScrollView, DrawerItemList } from '@react-navigation/drawer';
 import { createStackNavigator } from '@react-navigation/stack';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
-import { CartProvider } from './screens/context/CartContext'; // Import CartProvider
+import { CartProvider } from './screens/context/CartContext';
+import { Provider } from 'react-redux'; // Add this
+import store from './redux/store'; // Add this
+import { checkAuthStatus } from './redux/slices/authSlice'; // Add this
 
 // Regular user screens
 import HomeScreen from './screens/HomeScreen';
@@ -118,18 +121,24 @@ function AdminDrawerNavigator() {
   );
 }
 
-export default function App() {
+// Add a new component to handle initial loading and token checking
+const AppContent = () => {
+  useEffect(() => {
+    // Check for existing auth token when app starts
+    store.dispatch(checkAuthStatus());
+  }, []);
+
   return (
-    <GestureHandlerRootView style={{ flex: 1 }}>
-      <CartProvider> {/* Wrap the app with CartProvider */}
-        <NavigationContainer>
-              <Stack.Navigator initialRouteName="Login">
-        <Stack.Screen
-          name="Login"
-          component={LoginScreen}
-          options={{ headerShown: false }}
-        />
-        <Stack.Screen
+    <CartProvider> {/* Keep your CartProvider */}
+      <NavigationContainer>
+        <Stack.Navigator initialRouteName="Login">
+          {/* All your screens remain the same */}
+          <Stack.Screen
+            name="Login"
+            component={LoginScreen}
+            options={{ headerShown: false }}
+          />
+          <Stack.Screen
           name="Register"
           component={RegistrationScreen}
           options={{ headerShown: false }}
@@ -154,9 +163,18 @@ export default function App() {
           component={CartScreen}
           options={{ title: 'Your Cart' }}
         />
-      </Stack.Navigator>
-        </NavigationContainer>
-      </CartProvider>
+        </Stack.Navigator>
+      </NavigationContainer>
+    </CartProvider>
+  );
+};
+
+export default function App() {
+  return (
+    <GestureHandlerRootView style={{ flex: 1 }}>
+      <Provider store={store}>
+        <AppContent />
+      </Provider>
     </GestureHandlerRootView>
   );
 }

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -9,45 +9,48 @@ import {
   KeyboardAvoidingView,
   Platform,
   ScrollView,
-  Alert
+  Alert,
+  ActivityIndicator,
 } from 'react-native';
-
-// Admin credentials
-const ADMIN_EMAIL = "admin@kgrillhub.com";
-const ADMIN_PASSWORD = "admin123";
-
-const USER_EMAIL = "user@kgrillhub.com";
-const USER_PASSWORD = "user123";
-
+import { useDispatch, useSelector } from 'react-redux';
+import { loginUser, clearError } from '../../redux/slices/authSlice';
 
 const LoginScreen = ({ navigation }) => {
+  const dispatch = useDispatch();
+  const { isLoading, error, isLoggedIn, isAdmin } = useSelector((state) => state.auth);
+
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [isEmailFocused, setIsEmailFocused] = useState(false);
   const [isPasswordFocused, setIsPasswordFocused] = useState(false);
+
+  // Navigate to appropriate screen when login state changes
+  useEffect(() => {
+    if (isLoggedIn) {
+      if (isAdmin) {
+        navigation.navigate('AdminPanel');
+      } else {
+        navigation.navigate('Main');
+      }
+    }
+  }, [isLoggedIn, isAdmin, navigation]);
+
+  // Show error if any
+  useEffect(() => {
+    if (error) {
+      Alert.alert('Error', error);
+      dispatch(clearError());
+    }
+  }, [error, dispatch]);
 
   const handleLogin = () => {
     if (!email || !password) {
       Alert.alert('Error', 'Please fill in all fields');
       return;
     }
-  
-    // Check for admin credentials
-    if (email.toLowerCase() === ADMIN_EMAIL && password === ADMIN_PASSWORD) {
-      // Navigate to admin panel
-      navigation.navigate('AdminPanel');
-      return;
-    }
-  
-    // Check for user credentials
-    if (email.toLowerCase() === USER_EMAIL && password === USER_PASSWORD) {
-      // Navigate to user side
-      navigation.navigate('Main');
-      return;
-    }
-  
-    // Invalid credentials
-    Alert.alert('Error', 'Invalid email or password');
+    
+    // Dispatch login action
+    dispatch(loginUser({ email, password }));
   };
 
   return (
@@ -98,8 +101,16 @@ const LoginScreen = ({ navigation }) => {
             <Text style={styles.forgotPasswordText}>Forgot Password?</Text>
           </TouchableOpacity>
 
-          <TouchableOpacity style={styles.loginButton} onPress={handleLogin}>
-            <Text style={styles.loginButtonText}>Sign In</Text>
+          <TouchableOpacity 
+            style={styles.loginButton} 
+            onPress={handleLogin}
+            disabled={isLoading}
+          >
+            {isLoading ? (
+              <ActivityIndicator color="#fff" size="small" />
+            ) : (
+              <Text style={styles.loginButtonText}>Sign In</Text>
+            )}
           </TouchableOpacity>
 
           <View style={styles.registerContainer}>
@@ -115,6 +126,7 @@ const LoginScreen = ({ navigation }) => {
 };
 
 const styles = StyleSheet.create({
+  // Keep the same styles as before
   container: {
     flex: 1,
     backgroundColor: '#fff',
