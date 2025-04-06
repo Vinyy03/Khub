@@ -1,13 +1,17 @@
 const bcrypt = require("bcrypt");
 const jwt = require("jsonwebtoken");
 const User = require("../models/user.model.js");
+const multer = require('multer');
+const path = require('path');
+const fs = require('fs');
 
 const register = async (req, res) => {
     try {
-        const { username, email, password, phone, country, address } = req.body;
+        const { username, email, password, phone, country, address, profileImage } = req.body;
 
-        if (!username || !email || !password || !phone || !country || !address) {
-            return res.status(400).json({ message: "All fields are required" });
+        // Validate required fields
+        if (!username || !email || !password) {
+            return res.status(400).json({ message: "Username, email and password are required" });
         }
 
         const existingUser = await User.findOne({ email });
@@ -20,10 +24,12 @@ const register = async (req, res) => {
         const newUser = new User({
             username,
             email,
-            phone,
-            country,
-            address,
+            phone: phone || '',
+            country: country || '',
+            address: address || '',
             password: hashedPassword,
+            // Save the Cloudinary URL directly
+            profileImage: profileImage || '',
         });
 
         await newUser.save();
@@ -41,6 +47,7 @@ const register = async (req, res) => {
         });
     }
 };
+
 
 const login = async (req, res) => {
     try {
@@ -78,7 +85,7 @@ const login = async (req, res) => {
 const updateUser = async (req, res) => {
     try {
         const { userId } = req.user; // From JWT middleware
-        const { username, address, phone, country, currentPassword, newPassword } = req.body;
+        const { username, address, phone, country, currentPassword, newPassword, profileImage } = req.body;
         
         // Find the user
         const user = await User.findById(userId);
@@ -87,27 +94,20 @@ const updateUser = async (req, res) => {
         }
         
         // If trying to change password, verify current password
-        if (newPassword) {
-            if (!currentPassword) {
-                return res.status(400).json({ 
-                    message: "Current password is required to set a new password" 
-                });
-            }
-            
-            const isPasswordValid = await bcrypt.compare(currentPassword, user.password);
+        if (newPassword && currentPassword) {
+            const isPasswordValid = bcrypt.compareSync(currentPassword, user.password);
             if (!isPasswordValid) {
                 return res.status(400).json({ message: "Current password is incorrect" });
             }
-            
-            // Hash the new password
             user.password = bcrypt.hashSync(newPassword, 10);
         }
         
-        // Update user fields
+        // Update user fields if provided
         if (username) user.username = username;
-        if (address) user.address = address;
-        if (phone) user.phone = phone;
-        if (country) user.country = country;
+        if (address !== undefined) user.address = address;
+        if (phone !== undefined) user.phone = phone;
+        if (country !== undefined) user.country = country;
+        if (profileImage) user.profileImage = profileImage;
         
         // Save updated user
         await user.save();

@@ -1,18 +1,20 @@
 import React, { useState, useEffect } from 'react';
-import { 
-  View, Text, StyleSheet, Image, TouchableOpacity, 
-  TextInput, ScrollView, Alert, ActivityIndicator 
+import {
+  View, Text, StyleSheet, Image, TouchableOpacity,
+  TextInput, ScrollView, Alert, ActivityIndicator
 } from 'react-native';
 import { useSelector, useDispatch } from 'react-redux';
 import { logoutUser, updateUserProfile, clearError } from '../redux/slices/authSlice';
 import { useNavigation } from '@react-navigation/native';
+import * as ImagePicker from 'expo-image-picker';
+import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
 
 const ProfileScreen = () => {
   const dispatch = useDispatch();
   const navigation = useNavigation();
   const { user, isLoading, error } = useSelector((state) => state.auth);
   const [isEditing, setIsEditing] = useState(false);
-  
+
   // State for user data
   const [userData, setUserData] = useState({
     username: user?.username || 'User',
@@ -21,14 +23,14 @@ const ProfileScreen = () => {
     phone: user?.phone || '',
     country: user?.country || '',
   });
-  
+
   // State for password change
   const [passwordData, setPasswordData] = useState({
     currentPassword: '',
     newPassword: '',
     confirmPassword: '',
   });
-  
+
   // State to track if user wants to change password
   const [changingPassword, setChangingPassword] = useState(false);
 
@@ -84,48 +86,48 @@ const ProfileScreen = () => {
       Alert.alert('Error', 'Username cannot be empty');
       return false;
     }
-    
+
     if (changingPassword) {
       if (!passwordData.currentPassword) {
         Alert.alert('Error', 'Current password is required');
         return false;
       }
-      
+
       if (!passwordData.newPassword) {
         Alert.alert('Error', 'New password is required');
         return false;
       }
-      
+
       if (passwordData.newPassword !== passwordData.confirmPassword) {
         Alert.alert('Error', 'New passwords do not match');
         return false;
       }
-      
+
       if (passwordData.newPassword.length < 6) {
         Alert.alert('Error', 'Password must be at least 6 characters');
         return false;
       }
     }
-    
+
     return true;
   };
 
   const saveChanges = () => {
     if (!validateData()) return;
-    
+
     const updateData = {
       username: userData.username,
       address: userData.address,
       phone: userData.phone,
       country: userData.country,
     };
-    
+
     // Add password data if changing password
     if (changingPassword) {
       updateData.currentPassword = passwordData.currentPassword;
       updateData.newPassword = passwordData.newPassword;
     }
-    
+
     dispatch(updateUserProfile(updateData))
       .unwrap()
       .then(() => {
@@ -163,15 +165,39 @@ const ProfileScreen = () => {
     );
   };
 
+  const pickImage = async () => {
+    try {
+      const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      
+      if (status !== 'granted') {
+        Alert.alert('Permission Denied', 'We need access to your photos to update your profile picture.');
+        return;
+      }
+      
+      let result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        allowsEditing: true,
+        aspect: [1, 1],
+        quality: 0.7,
+      });
+      
+      if (!result.canceled) {
+        setUserData({
+          ...userData,
+          profileImage: result.assets[0].uri,
+        });
+      }
+    } catch (error) {
+      console.error('Error picking image:', error);
+      Alert.alert('Error', 'Failed to pick image');
+    }
+  };
+
   return (
     <View style={styles.container}>
       <ScrollView style={styles.scrollContainer}>
         {/* Header Section */}
         <View style={styles.header}>
-          <Image
-            source={{ uri: 'https://pbs.twimg.com/media/GQwIdXhbEAAswfu.jpg:large' }}
-            style={styles.profileImage}
-          />
           <Text style={styles.headerTitle}>My Account</Text>
         </View>
 
@@ -193,7 +219,7 @@ const ProfileScreen = () => {
               )}
             </View>
           ))}
-          
+
           {/* Password change section */}
           {isEditing && (
             <View style={styles.passwordSection}>
@@ -202,7 +228,7 @@ const ProfileScreen = () => {
                   {changingPassword ? '- Cancel Password Change' : '+ Change Password'}
                 </Text>
               </TouchableOpacity>
-              
+
               {changingPassword && (
                 <>
                   <View style={styles.field}>
@@ -215,7 +241,7 @@ const ProfileScreen = () => {
                       placeholder="Enter current password"
                     />
                   </View>
-                  
+
                   <View style={styles.field}>
                     <Text style={styles.label}>New Password</Text>
                     <TextInput
@@ -226,7 +252,7 @@ const ProfileScreen = () => {
                       placeholder="Enter new password"
                     />
                   </View>
-                  
+
                   <View style={styles.field}>
                     <Text style={styles.label}>Confirm New Password</Text>
                     <TextInput
@@ -244,12 +270,34 @@ const ProfileScreen = () => {
         </View>
       </ScrollView>
 
+      <TouchableOpacity 
+  onPress={isEditing ? pickImage : null} 
+  disabled={!isEditing}
+  style={[styles.profileImageContainer, isEditing && styles.profileImageContainerEditing]}
+>
+  <Image
+    source={
+      userData.profileImage
+        ? { uri: userData.profileImage }
+        : user?.profileImage
+        ? { uri: user.profileImage }
+        : require('../assets/placeholder.jpg')
+    }
+    style={styles.profileImage}
+  />
+  {isEditing && (
+    <View style={styles.editImageOverlay}>
+      <MaterialIcons name="camera-alt" size={24} color="#fff" />
+    </View>
+  )}
+</TouchableOpacity>
+
       {/* Buttons at the Bottom */}
       <View style={styles.buttonsContainer}>
         {isEditing ? (
           <>
-            <TouchableOpacity 
-              style={styles.saveButton} 
+            <TouchableOpacity
+              style={styles.saveButton}
               onPress={saveChanges}
               disabled={isLoading}
             >
@@ -396,6 +444,22 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontSize: 16,
     fontWeight: 'bold',
+  },
+  profileImageContainer: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    position: 'relative',
+  },
+  profileImageContainerEditing: {
+    opacity: 0.8,
+  },
+  editImageOverlay: {
+    position: 'absolute',
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    borderRadius: 50,
+    padding: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
 });
 

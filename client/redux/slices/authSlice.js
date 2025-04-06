@@ -3,23 +3,30 @@ import axios from 'axios';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { API_URL } from '@env';
 import axiosInstance from '../../utils/axiosConfig';
+import { uploadImageToCloudinary } from '../../utils/imageUpload';
 
 // Base URL from environment variable
 const baseURL = API_URL || 'http://192.168.1.64:5000';
 
-// Update the registerUser function
+// Update the registerUser function to handle Cloudinary image upload
 export const registerUser = createAsyncThunk(
   'auth/register',
-  async ({ username, email, password, address, phone, country }, { rejectWithValue }) => {
+  async (userData, { rejectWithValue }) => {
     try {
-      const response = await axiosInstance.post('/api/v1/auth/register', {
-        username,
-        email,
-        password,
-        address,
-        phone,
-        country
-      });
+      // If there's a profile image, upload it to Cloudinary first
+      let profileImageUrl = null;
+      if (userData.profileImage) {
+        profileImageUrl = await uploadImageToCloudinary(userData.profileImage);
+      }
+      
+      // Create user data with Cloudinary image URL if available
+      const userDataToSend = {
+        ...userData,
+        profileImage: profileImageUrl || '',
+      };
+      
+      // Register the user with the Cloudinary image URL
+      const response = await axios.post(`${baseURL}/api/v1/auth/register`, userDataToSend);
 
       return response.data;
     } catch (error) {
@@ -57,6 +64,12 @@ export const updateUserProfile = createAsyncThunk(
   'auth/updateProfile',
   async (userData, { rejectWithValue }) => {
     try {
+      // Upload image to Cloudinary if a new one is provided
+      if (userData.profileImage && !userData.profileImage.startsWith('http')) {
+        const cloudinaryUrl = await uploadImageToCloudinary(userData.profileImage);
+        userData.profileImage = cloudinaryUrl;
+      }
+      
       const response = await axiosInstance.put('/api/v1/auth/update-profile', userData);
 
       // Update the stored user data

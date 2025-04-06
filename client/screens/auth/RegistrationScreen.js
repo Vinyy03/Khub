@@ -9,10 +9,13 @@ import {
   ActivityIndicator,
   KeyboardAvoidingView,
   Platform,
-  ScrollView
+  ScrollView,
+  Image
 } from 'react-native';
 import { useDispatch, useSelector } from 'react-redux';
 import { registerUser, clearError } from '../../redux/slices/authSlice';
+import * as ImagePicker from 'expo-image-picker';
+import { MaterialIcons } from '@expo/vector-icons';
 
 const RegistrationScreen = ({ navigation }) => {
   const dispatch = useDispatch();
@@ -25,6 +28,7 @@ const RegistrationScreen = ({ navigation }) => {
   const [address, setAddress] = useState('');
   const [phone, setPhone] = useState('');
   const [country, setCountry] = useState('');
+  const [profileImage, setProfileImage] = useState(null);
 
   // Show error if any
   useEffect(() => {
@@ -34,10 +38,38 @@ const RegistrationScreen = ({ navigation }) => {
     }
   }, [error, dispatch]);
 
-  const handleRegister = () => {
+  // Function to pick an image from the device
+  const pickImage = async () => {
+    try {
+      // Request permission to access the media library
+      const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      
+      if (status !== 'granted') {
+        Alert.alert('Permission Denied', 'We need access to your photos to set a profile picture.');
+        return;
+      }
+      
+      // Launch the image picker
+      let result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        allowsEditing: true,
+        aspect: [1, 1],
+        quality: 0.7,
+      });
+      
+      if (!result.canceled) {
+        setProfileImage(result.assets[0].uri);
+      }
+    } catch (error) {
+      console.error('Error picking image:', error);
+      Alert.alert('Error', 'Failed to pick image');
+    }
+  };
+
+  const handleRegister = async () => {
     // Form validation
     if (!username || !email || !password || !confirmPassword) {
-      Alert.alert('Error', 'All fields are required');
+      Alert.alert('Error', 'Username, email, and password are required');
       return;
     }
     if (password !== confirmPassword) {
@@ -58,24 +90,33 @@ const RegistrationScreen = ({ navigation }) => {
       return;
     }
 
-    // Dispatch register action
-    dispatch(registerUser({
-      username, email, password, address,
-      phone,
-      country
-    }))
-      .unwrap()
-      .then(() => {
-        Alert.alert(
-          'Success',
-          'Registration successful!',
-          [{ text: 'OK', onPress: () => navigation.navigate('Login') }]
-        );
-      })
-      .catch(() => {
-        // Error is already handled in the useEffect above
-      });
+    try {
+      // Create user data object
+      const userData = {
+        username,
+        email,
+        password,
+        address: address || '',
+        phone: phone || '',
+        country: country || '',
+        profileImage: profileImage, // This will be uploaded to Cloudinary in the slice
+      };
+
+      // Dispatch register action
+      await dispatch(registerUser(userData)).unwrap();
+      
+      // Show success message and navigate to login
+      Alert.alert(
+        'Success',
+        'Registration successful!',
+        [{ text: 'OK', onPress: () => navigation.navigate('Login') }]
+      );
+    } catch (error) {
+      // Error handled by the useEffect
+      console.error("Registration error:", error);
+    }
   };
+
 
   return (
     <KeyboardAvoidingView
@@ -85,6 +126,20 @@ const RegistrationScreen = ({ navigation }) => {
       <ScrollView contentContainerStyle={styles.scrollContainer}>
         <Text style={styles.title}>Create an Account</Text>
         <Text style={styles.subtitle}>Sign up to get started</Text>
+
+        {/* Profile Image Picker */}
+        <View style={styles.profileImageContainer}>
+          <TouchableOpacity onPress={pickImage} style={styles.imagePickerButton}>
+            {profileImage ? (
+              <Image source={{ uri: profileImage }} style={styles.profileImage} />
+            ) : (
+              <View style={styles.placeholderContainer}>
+                <MaterialIcons name="person" size={40} color="#999" />
+                <Text style={styles.placeholderText}>Add Photo</Text>
+              </View>
+            )}
+          </TouchableOpacity>
+        </View>
 
         <View style={styles.formContainer}>
           <TextInput
@@ -104,7 +159,6 @@ const RegistrationScreen = ({ navigation }) => {
             autoCapitalize="none"
           />
 
-           {/* Add new input fields for address, phone, and country */}
            <TextInput
             style={styles.input}
             placeholder="Address"
@@ -194,6 +248,35 @@ const styles = StyleSheet.create({
     color: '#666',
     marginBottom: 30,
     textAlign: 'center',
+  },
+  profileImageContainer: {
+    alignItems: 'center',
+    marginBottom: 20,
+  },
+  imagePickerButton: {
+    width: 120,
+    height: 120,
+    borderRadius: 60,
+    overflow: 'hidden',
+    backgroundColor: '#f0f0f0',
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#ddd',
+    marginBottom: 10,
+  },
+  profileImage: {
+    width: '100%',
+    height: '100%',
+  },
+  placeholderContainer: {
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  placeholderText: {
+    color: '#999',
+    marginTop: 5,
+    fontSize: 14,
   },
   input: {
     width: '100%',
