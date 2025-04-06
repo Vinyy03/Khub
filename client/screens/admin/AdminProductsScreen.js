@@ -1,139 +1,203 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, FlatList, TextInput, TouchableOpacity, ActivityIndicator, Alert } from 'react-native';
-import axios from 'axios';
+import {
+  View,
+  Text,
+  StyleSheet,
+  FlatList,
+  TextInput,
+  TouchableOpacity,
+  Image,
+  Modal,
+  ActivityIndicator,
+  Alert,
+} from 'react-native';
+import { MaterialIcons } from '@expo/vector-icons';
+import { useSelector, useDispatch } from 'react-redux';
+import {
+  fetchProducts,
+  createProduct,
+  updateProduct,
+  deleteProduct,
+  clearProductError,
+} from '../../redux/slices/productSlice';
+import ProductForm from '../components/ProductForm';
 
 const AdminProductsScreen = () => {
+  const dispatch = useDispatch();
+  const { products, isLoading, error } = useSelector((state) => state.products);
   const [search, setSearch] = useState('');
-  const [products, setProducts] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [modalVisible, setModalVisible] = useState(false);
+  const [isEditMode, setIsEditMode] = useState(false);
+  const [currentProduct, setCurrentProduct] = useState(null);
 
-  // Fetch products from the backend
+  // Load products when component mounts
   useEffect(() => {
-    fetchProducts();
-  }, []);
+    dispatch(fetchProducts());
+  }, [dispatch]);
 
-  const fetchProducts = async () => {
-    setLoading(true);
-    try {
-      const response = await axios.get('http://192.168.55.100:5000/api/v1/products'); // Replace with your backend URL
-      setProducts(response.data.product); // Assuming the response contains a `product` array
-      setLoading(false);
-    } catch (error) {
-      console.error('Error fetching products:', error);
-      setLoading(false);
+  // Handle error messages
+  useEffect(() => {
+    if (error) {
+      Alert.alert('Error', error);
+      dispatch(clearProductError());
     }
+  }, [error, dispatch]);
+
+// Filter products based on search term
+const filteredProducts = products.filter((product) =>
+  product.name?.toLowerCase().includes(search?.toLowerCase() || '')
+);
+
+  // Open modal for editing a product
+  const handleEditProduct = (product) => {
+    setCurrentProduct(product);
+    setIsEditMode(true);
+    setModalVisible(true);
   };
 
-  const handleSearch = (text) => {
-    setSearch(text);
+  // Open modal for creating a new product
+  const handleAddProduct = () => {
+    setCurrentProduct(null);
+    setIsEditMode(false);
+    setModalVisible(true);
   };
 
-  const handleAddProduct = async () => {
-    // Example product data for creation
-    const newProduct = {
-      name: 'New Product',
-      description: 'This is a new product',
-      price: 99.99,
-      image: 'https://via.placeholder.com/150',
-      categories: ['Category1'],
-    };
-
-    try {
-      const response = await axios.post('http://192.168.55.100:5000/api/v1/products', newProduct, {
-        headers: { 'Content-Type': 'application/json' },
+  // Handle product creation
+  const handleCreateProduct = (productData) => {
+    dispatch(createProduct(productData))
+      .unwrap()
+      .then(() => {
+        setModalVisible(false);
+        Alert.alert('Success', 'Product created successfully');
       });
-      setProducts((prevProducts) => [...prevProducts, response.data.newProduct]);
-      Alert.alert('Success', 'Product added successfully!');
-    } catch (error) {
-      console.error('Error adding product:', error);
-      Alert.alert('Error', 'Failed to add product.');
-    }
   };
 
-  const handleEditProduct = async (id) => {
-    // Example updated product data
-    const updatedProduct = {
-      name: 'Updated Product Name',
-      price: 79.99,
-    };
-
-    try {
-      const response = await axios.put(`http://192.168.55.100:5000/api/v1/products/${id}`, updatedProduct, {
-        headers: { 'Content-Type': 'application/json' },
+  // Handle product update
+  const handleUpdateProduct = (productData) => {
+    dispatch(updateProduct({ id: currentProduct._id, productData }))
+      .unwrap()
+      .then(() => {
+        setModalVisible(false);
+        setCurrentProduct(null);
+        Alert.alert('Success', 'Product updated successfully');
       });
-      setProducts((prevProducts) =>
-        prevProducts.map((product) =>
-          product._id === id ? { ...product, ...response.data.updatedProduct } : product
-        )
-      );
-      Alert.alert('Success', 'Product updated successfully!');
-    } catch (error) {
-      console.error('Error updating product:', error);
-      Alert.alert('Error', 'Failed to update product.');
-    }
   };
 
-  const handleDeleteProduct = async (id) => {
-    try {
-      await axios.delete(`http://localhost:5000/api/v1/products/${id}`);
-      setProducts((prevProducts) => prevProducts.filter((product) => product._id !== id));
-      Alert.alert('Success', 'Product deleted successfully!');
-    } catch (error) {
-      console.error('Error deleting product:', error);
-      Alert.alert('Error', 'Failed to delete product.');
-    }
+  // Handle product deletion
+  const handleDeleteProduct = (productId) => {
+    Alert.alert(
+      'Confirm Deletion',
+      'Are you sure you want to delete this product?',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete',
+          onPress: () => {
+            dispatch(deleteProduct(productId))
+              .unwrap()
+              .then(() => {
+                Alert.alert('Success', 'Product deleted successfully');
+              });
+          },
+          style: 'destructive',
+        },
+      ]
+    );
   };
 
-  const renderProduct = ({ item }) => (
+  // Render each product item
+  const renderProductItem = ({ item }) => (
     <View style={styles.productItem}>
-      <Text style={styles.productName}>{item.name}</Text>
-      <Text style={styles.productPrice}>${item.price.toFixed(2)}</Text>
+      <Image 
+        source={{ uri: item.image }} 
+        style={styles.productImage}
+        defaultSource={require('../../assets/placeholder.jpg')} // Make sure to create a placeholder image
+      />
+      <View style={styles.productDetails}>
+        <Text style={styles.productName}>{item.name}</Text>
+        <Text style={styles.productPrice}>${item.price.toFixed(2)}</Text>
+        <View style={styles.categoriesContainer}>
+          {item.categories && item.categories.map((category, index) => (
+            <Text key={index} style={styles.categoryTag}>{category}</Text>
+          ))}
+        </View>
+      </View>
       <View style={styles.actionButtons}>
         <TouchableOpacity
-          style={[styles.button, styles.editButton]}
-          onPress={() => handleEditProduct(item._id)}
+          style={[styles.actionButton, styles.editButton]}
+          onPress={() => handleEditProduct(item)}
         >
-          <Text style={styles.buttonText}>Edit</Text>
+          <MaterialIcons name="edit" size={20} color="#fff" />
         </TouchableOpacity>
         <TouchableOpacity
-          style={[styles.button, styles.deleteButton]}
+          style={[styles.actionButton, styles.deleteButton]}
           onPress={() => handleDeleteProduct(item._id)}
         >
-          <Text style={styles.buttonText}>Delete</Text>
+          <MaterialIcons name="delete" size={20} color="#fff" />
         </TouchableOpacity>
       </View>
     </View>
   );
 
-  if (loading) {
-    return (
-      <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#007BFF" />
-        <Text>Loading products...</Text>
-      </View>
-    );
-  }
-
   return (
     <View style={styles.container}>
-      <Text style={styles.title}>Manage Products</Text>
+      <Text style={styles.title}>Product Management</Text>
+
       <TextInput
         style={styles.searchInput}
         placeholder="Search products..."
         value={search}
-        onChangeText={handleSearch}
+        onChangeText={setSearch}
       />
-      <FlatList
-        data={products.filter((product) =>
-          product.name.toLowerCase().includes(search.toLowerCase())
-        )}
-        keyExtractor={(item) => item._id}
-        renderItem={renderProduct}
-        contentContainerStyle={styles.productList}
-      />
+
+      {isLoading && !modalVisible ? (
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color="#007BFF" />
+          <Text style={styles.loadingText}>Loading products...</Text>
+        </View>
+      ) : (
+        <FlatList
+          data={filteredProducts}
+          renderItem={renderProductItem}
+          keyExtractor={(item) => item._id}
+          contentContainerStyle={styles.listContainer}
+          ListEmptyComponent={
+            <Text style={styles.emptyText}>No products found</Text>
+          }
+        />
+      )}
+
       <TouchableOpacity style={styles.addButton} onPress={handleAddProduct}>
-        <Text style={styles.addButtonText}>Add Product</Text>
+        <MaterialIcons name="add" size={24} color="#fff" />
       </TouchableOpacity>
+
+      {/* Product Form Modal */}
+      <Modal
+        visible={modalVisible}
+        animationType="slide"
+        transparent={false}
+        onRequestClose={() => setModalVisible(false)}
+      >
+        <View style={styles.modalContainer}>
+          <View style={styles.modalHeader}>
+            <Text style={styles.modalTitle}>
+              {isEditMode ? 'Edit Product' : 'Create Product'}
+            </Text>
+            <TouchableOpacity
+              onPress={() => setModalVisible(false)}
+              style={styles.closeButton}
+            >
+              <MaterialIcons name="close" size={24} color="#333" />
+            </TouchableOpacity>
+          </View>
+
+          <ProductForm
+            initialValues={currentProduct || {}}
+            onSubmit={isEditMode ? handleUpdateProduct : handleCreateProduct}
+            isSubmitting={isLoading}
+          />
+        </View>
+      </Modal>
     </View>
   );
 };
@@ -151,78 +215,128 @@ const styles = StyleSheet.create({
     color: '#333',
   },
   searchInput: {
-    height: 40,
-    borderColor: '#ccc',
+    height: 50,
+    borderColor: '#ddd',
     borderWidth: 1,
     borderRadius: 8,
-    paddingHorizontal: 10,
+    paddingHorizontal: 15,
     marginBottom: 20,
     backgroundColor: '#fff',
   },
-  productList: {
+  listContainer: {
     paddingBottom: 80,
   },
   productItem: {
+    flexDirection: 'row',
     backgroundColor: '#fff',
     padding: 15,
     borderRadius: 8,
-    marginBottom: 10,
+    marginBottom: 15,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
     shadowRadius: 4,
     elevation: 2,
   },
+  productImage: {
+    width: 70,
+    height: 70,
+    borderRadius: 8,
+  },
+  productDetails: {
+    flex: 1,
+    marginLeft: 15,
+  },
   productName: {
-    fontSize: 18,
+    fontSize: 16,
     fontWeight: 'bold',
     color: '#333',
   },
   productPrice: {
-    fontSize: 16,
-    color: '#666',
-    marginVertical: 5,
+    fontSize: 14,
+    color: '#28a745',
+    fontWeight: '500',
+    marginTop: 5,
+  },
+  categoriesContainer: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    marginTop: 5,
+  },
+  categoryTag: {
+    fontSize: 12,
+    backgroundColor: '#e9ecef',
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 12,
+    marginRight: 5,
+    marginTop: 5,
+    color: '#495057',
   },
   actionButtons: {
-    flexDirection: 'row',
-    justifyContent: 'flex-end',
-    marginTop: 10,
+    justifyContent: 'center',
   },
-  button: {
-    paddingVertical: 8,
-    paddingHorizontal: 15,
-    borderRadius: 5,
-    marginLeft: 10,
+  actionButton: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginVertical: 5,
   },
   editButton: {
     backgroundColor: '#007BFF',
   },
   deleteButton: {
-    backgroundColor: '#e63946',
-  },
-  buttonText: {
-    color: '#fff',
-    fontWeight: 'bold',
+    backgroundColor: '#dc3545',
   },
   addButton: {
     position: 'absolute',
     bottom: 20,
-    left: 20,
     right: 20,
+    width: 60,
+    height: 60,
     backgroundColor: '#28a745',
-    paddingVertical: 15,
-    borderRadius: 8,
+    borderRadius: 30,
+    justifyContent: 'center',
     alignItems: 'center',
-  },
-  addButtonText: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: '#fff',
+    elevation: 5,
   },
   loadingContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
+  },
+  loadingText: {
+    marginTop: 10,
+    color: '#666',
+  },
+  emptyText: {
+    textAlign: 'center',
+    fontSize: 16,
+    color: '#666',
+    marginTop: 50,
+  },
+  modalContainer: {
+    flex: 1,
+    backgroundColor: '#f9f9f9',
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: 20,
+    borderBottomWidth: 1,
+    borderBottomColor: '#eee',
+    backgroundColor: '#fff',
+  },
+  modalTitle: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: '#333',
+  },
+  closeButton: {
+    padding: 5,
   },
 });
 

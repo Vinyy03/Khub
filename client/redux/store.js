@@ -1,11 +1,13 @@
 import { configureStore } from '@reduxjs/toolkit';
 import authReducer from './slices/authSlice';
-import categoryReducer from './slices/categorySlice'; // Add this line
+import categoryReducer from './slices/categorySlice';
+import productReducer from './slices/productSlice'; // Add import
 
 const store = configureStore({
   reducer: {
     auth: authReducer,
-    categories: categoryReducer, // Add this line
+    categories: categoryReducer,
+    products: productReducer, // Add product reducer
     // Add other reducers here as your app grows
   },
   middleware: (getDefaultMiddleware) =>

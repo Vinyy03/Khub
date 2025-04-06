@@ -2,18 +2,22 @@ const mongoose = require('mongoose');
 const { Schema } = mongoose;
 
 const productModel = new Schema({
-    name: { // Changed from 'title' to 'name' to match ProductDetailScreen.js
+    name: {
         type: String,
         required: true,
+    },
+    title: {  // Add this back for compatibility with existing DB index
+        type: String,
         unique: true,
+        sparse: true, // Allows multiple null values
     },
-    description: { // Changed from 'desc' to 'description' to match ProductDetailScreen.js
+    description: {
         type: String,
         required: true,
     },
-    image: { // Changed from 'images' to 'image' to match ProductDetailScreen.js
+    image: {
         type: String,
-        required: true, // Uncommented to ensure it's mandatory
+        required: true,
     },
     categories: {
         type: Array,
@@ -21,7 +25,7 @@ const productModel = new Schema({
     },
     price: {
         type: Number,
-        required: true, // Added required to ensure price is mandatory
+        required: true,
     },
 },   
 { 

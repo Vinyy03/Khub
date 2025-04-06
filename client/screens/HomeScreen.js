@@ -1,159 +1,326 @@
-import React, { useState } from 'react';
-import { View, Text, StyleSheet, TextInput, FlatList, Image, TouchableOpacity } from 'react-native';
-import { LinearGradient } from 'expo-linear-gradient';
+import React, { useState, useEffect } from 'react';
+import { 
+  View, 
+  Text, 
+  StyleSheet, 
+  TextInput, 
+  FlatList, 
+  Image, 
+  TouchableOpacity,
+  ActivityIndicator,
+  ScrollView 
+} from 'react-native';
+import { useDispatch, useSelector } from 'react-redux';
 import { useNavigation } from '@react-navigation/native';
-import { useCart } from '../screens/context/CartContext'; // Import CartContext
+import { useCart } from '../screens/context/CartContext';
+import { fetchProducts } from '../redux/slices/productSlice';
+import { fetchCategories } from '../redux/slices/categorySlice';
 
 const HomeScreen = () => {
   const navigation = useNavigation();
-  const { cartItems, toastMessage } = useCart(); // Access cartItems and toastMessage from CartContext
+  const dispatch = useDispatch();
+  const { products, isLoading: productsLoading } = useSelector(state => state.products);
+  const { categories, isLoading: categoriesLoading } = useSelector(state => state.categories);
+  const { cartItems } = useCart();
+  
   const [searchQuery, setSearchQuery] = useState('');
-  const [products] = useState([
-    { id: '1', name: 'Grilled Chicken', price: '12.99', image: 'https://nebraskastarbeef.com/wp-content/uploads/2022/09/52913995_m-scaled.jpg' },
-    { id: '2', name: 'BBQ Ribs', price: '15.99', image: 'https://nebraskastarbeef.com/wp-content/uploads/2022/09/52913995_m-scaled.jpg' },
-    { id: '3', name: 'Veggie Skewers', price: '9.99', image: 'https://nebraskastarbeef.com/wp-content/uploads/2022/09/52913995_m-scaled.jpg' },
-    { id: '4', name: 'Steak', price: '19.99', image: 'https://nebraskastarbeef.com/wp-content/uploads/2022/09/52913995_m-scaled.jpg' },
-    { id: '5', name: 'Grilled Salmon', price: '17.99', image: 'https://nebraskastarbeef.com/wp-content/uploads/2022/09/52913995_m-scaled.jpg' },
-    { id: '6', name: 'Pork Chops', price: '14.99', image: 'https://nebraskastarbeef.com/wp-content/uploads/2022/09/52913995_m-scaled.jpg' },
-    { id: '7', name: 'Chicken Wings', price: '10.99', image: 'https://nebraskastarbeef.com/wp-content/uploads/2022/09/52913995_m-scaled.jpg' },
-    { id: '8', name: 'Lamb Chops', price: '22.99', image: 'https://nebraskastarbeef.com/wp-content/uploads/2022/09/52913995_m-scaled.jpg' },
-    { id: '9', name: 'Grilled Shrimp', price: '18.99', image: 'https://nebraskastarbeef.com/wp-content/uploads/2022/09/52913995_m-scaled.jpg' },
-    { id: '10', name: 'Corn on the Cob', price: '5.99', image: 'https://nebraskastarbeef.com/wp-content/uploads/2022/09/52913995_m-scaled.jpg' },
-  ]);
-
-  const filteredProducts = products.filter((product) =>
-    product.name.toLowerCase().includes(searchQuery.toLowerCase())
+  const [selectedCategory, setSelectedCategory] = useState(null);
+  
+  // Load products and categories when component mounts
+  useEffect(() => {
+    dispatch(fetchProducts());
+    dispatch(fetchCategories());
+  }, [dispatch]);
+  
+  // Filter products based on search and selected category
+  const filteredProducts = products.filter(product => {
+    const matchesSearch = product.name.toLowerCase().includes(searchQuery.toLowerCase());
+    const matchesCategory = selectedCategory 
+      ? product.categories && product.categories.includes(selectedCategory)
+      : true;
+      
+    return matchesSearch && matchesCategory;
+  });
+  
+  // Handle category selection
+  const handleCategorySelect = (categoryName) => {
+    setSelectedCategory(categoryName === selectedCategory ? null : categoryName);
+  };
+  
+  // Navigate to product detail screen
+  const navigateToProductDetail = (product) => {
+    navigation.navigate('ProductDetail', { productId: product._id });
+  };
+  
+  // Render category item
+  const renderCategoryItem = ({ item }) => (
+    <TouchableOpacity
+      style={[
+        styles.categoryItem,
+        selectedCategory === item.name && styles.selectedCategoryItem
+      ]}
+      onPress={() => handleCategorySelect(item.name)}
+    >
+      <Text 
+        style={[
+          styles.categoryText,
+          selectedCategory === item.name && styles.selectedCategoryText
+        ]}
+      >
+        {item.name}
+      </Text>
+    </TouchableOpacity>
   );
-
+  
+  // Render product item
+  const renderProductItem = ({ item }) => (
+    <TouchableOpacity
+      style={styles.productItem}
+      onPress={() => navigateToProductDetail(item)}
+    >
+      <Image 
+        source={{ uri: item.image }} 
+        style={styles.productImage}
+        defaultSource={require('./../assets/placeholder.jpg')}
+      />
+      <View style={styles.productInfo}>
+        <Text style={styles.productName} numberOfLines={1}>{item.name}</Text>
+        <Text style={styles.productPrice}>${item.price.toFixed(2)}</Text>
+        
+        {item.categories && item.categories.length > 0 && (
+          <View style={styles.categoryTagsContainer}>
+            {item.categories.slice(0, 2).map((category, index) => (
+              <Text key={index} style={styles.categoryTag}>{category}</Text>
+            ))}
+            {item.categories.length > 2 && (
+              <Text style={styles.categoryTag}>+{item.categories.length - 2}</Text>
+            )}
+          </View>
+        )}
+      </View>
+    </TouchableOpacity>
+  );
+  
   return (
-    <LinearGradient colors={['#ffecd2', '#fcb69f']} style={styles.gradient}>
-      <View style={styles.container}>
-        {/* Cart Button */}
+    <View style={styles.container}>
+      {/* Header with Cart Button */}
+      <View style={styles.header}>
+        <Text style={styles.title}>KGrill Hub</Text>
         <TouchableOpacity
           style={styles.cartButton}
           onPress={() => navigation.navigate('Cart')}
         >
           <Text style={styles.cartButtonText}>Cart ({cartItems.length})</Text>
         </TouchableOpacity>
-
-        <Text style={styles.title}>KGrillHub</Text>
-        <TextInput
-          style={styles.searchBar}
-          placeholder="Search products..."
-          value={searchQuery}
-          onChangeText={(text) => setSearchQuery(text)}
-        />
+      </View>
+      
+      {/* Search Bar */}
+      <TextInput
+        style={styles.searchBar}
+        placeholder="Search products..."
+        value={searchQuery}
+        onChangeText={setSearchQuery}
+      />
+      
+      {/* Categories Horizontal List */}
+      {categoriesLoading ? (
+        <ActivityIndicator size="small" color="#007BFF" style={styles.loadingIndicator} />
+      ) : (
+        <View style={styles.categoriesContainer}>
+          <ScrollView 
+            horizontal 
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.categoriesScrollView}
+          >
+            <TouchableOpacity
+              style={[
+                styles.categoryItem,
+                !selectedCategory && styles.selectedCategoryItem
+              ]}
+              onPress={() => setSelectedCategory(null)}
+            >
+              <Text 
+                style={[
+                  styles.categoryText,
+                  !selectedCategory && styles.selectedCategoryText
+                ]}
+              >
+                All
+              </Text>
+            </TouchableOpacity>
+            
+            {categories.map(category => (
+              <TouchableOpacity
+                key={category._id}
+                style={[
+                  styles.categoryItem,
+                  selectedCategory === category.name && styles.selectedCategoryItem
+                ]}
+                onPress={() => handleCategorySelect(category.name)}
+              >
+                <Text 
+                  style={[
+                    styles.categoryText,
+                    selectedCategory === category.name && styles.selectedCategoryText
+                  ]}
+                >
+                  {category.name}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </ScrollView>
+        </View>
+      )}
+      
+      {/* Products Grid */}
+      {productsLoading ? (
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color="#007BFF" />
+          <Text style={styles.loadingText}>Loading products...</Text>
+        </View>
+      ) : (
         <FlatList
           data={filteredProducts}
-          keyExtractor={(item) => item.id}
-          renderItem={({ item }) => (
-            <TouchableOpacity
-              style={styles.productItem}
-              onPress={() => navigation.navigate('ProductDetail', { product: item })}
-            >
-              <Image source={{ uri: item.image }} style={styles.productImage} />
-              <Text style={styles.productName}>{item.name}</Text>
-              <Text style={styles.productPrice}>${item.price}</Text>
-            </TouchableOpacity>
-          )}
+          keyExtractor={(item) => item._id}
+          renderItem={renderProductItem}
           numColumns={2}
-          columnWrapperStyle={styles.row}
-          showsVerticalScrollIndicator={false}
+          contentContainerStyle={styles.productsGrid}
+          ListEmptyComponent={
+            <Text style={styles.emptyText}>
+              {searchQuery || selectedCategory
+                ? 'No products found. Try a different search or category.'
+                : 'No products available.'}
+            </Text>
+          }
         />
-        {toastMessage && (
-          <View style={styles.toast}>
-            <Text style={styles.toastText}>{toastMessage}</Text>
-          </View>
-        )}
-      </View>
-    </LinearGradient>
+      )}
+    </View>
   );
 };
 
 const styles = StyleSheet.create({
-  gradient: {
-    flex: 1,
-  },
   container: {
     flex: 1,
-    padding: 16,
+    backgroundColor: '#f9f9f9',
+    padding: 15,
+  },
+  header: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 10,
+  },
+  title: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    color: '#333',
   },
   cartButton: {
-    alignSelf: 'flex-end',
     backgroundColor: '#007BFF',
-    paddingVertical: 10,
-    paddingHorizontal: 20,
+    paddingHorizontal: 15,
+    paddingVertical: 8,
     borderRadius: 20,
-    marginBottom: 10,
   },
   cartButtonText: {
     color: '#fff',
-    fontSize: 16,
     fontWeight: 'bold',
-  },
-  title: {
-    fontSize: 28,
-    fontWeight: 'bold',
-    textAlign: 'center',
-    marginBottom: 16,
-    color: '#333',
   },
   searchBar: {
-    height: 40,
-    borderColor: '#ccc',
-    borderWidth: 1,
-    borderRadius: 8,
-    paddingHorizontal: 8,
-    marginBottom: 16,
     backgroundColor: '#fff',
+    paddingHorizontal: 15,
+    paddingVertical: 10,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#ddd',
+    marginVertical: 15,
   },
-  row: {
-    justifyContent: 'space-between',
-    marginBottom: 16,
+  categoriesContainer: {
+    marginBottom: 15,
+  },
+  categoriesScrollView: {
+    paddingVertical: 5,
+    paddingHorizontal: 5,
+  },
+  categoryItem: {
+    backgroundColor: '#fff',
+    paddingHorizontal: 15,
+    paddingVertical: 8,
+    borderRadius: 20,
+    marginRight: 10,
+    borderWidth: 1,
+    borderColor: '#ddd',
+  },
+  selectedCategoryItem: {
+    backgroundColor: '#007BFF',
+    borderColor: '#007BFF',
+  },
+  categoryText: {
+    color: '#333',
+    fontWeight: '500',
+  },
+  selectedCategoryText: {
+    color: '#fff',
+  },
+  loadingIndicator: {
+    marginVertical: 10,
+  },
+  productsGrid: {
+    paddingBottom: 20,
   },
   productItem: {
     flex: 1,
-    alignItems: 'center',
-    margin: 8,
     backgroundColor: '#fff',
-    borderRadius: 12,
-    padding: 16,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.2,
-    shadowRadius: 4,
-    elevation: 3,
+    margin: 8,
+    borderRadius: 8,
+    overflow: 'hidden',
+    elevation: 2,
   },
   productImage: {
-    width: 120,
-    height: 120,
-    borderRadius: 8,
-    marginBottom: 8,
+    width: '100%',
+    height: 150,
+    resizeMode: 'cover',
+  },
+  productInfo: {
+    padding: 10,
   },
   productName: {
     fontSize: 16,
     fontWeight: 'bold',
-    color: '#333',
-    textAlign: 'center',
-    marginBottom: 4,
+    marginBottom: 5,
   },
   productPrice: {
     fontSize: 14,
-    color: '#666',
-    textAlign: 'center',
+    fontWeight: '500',
+    color: '#28a745',
   },
-  toast: {
-    position: 'absolute',
-    bottom: 20,
-    left: 20,
-    right: 20,
-    backgroundColor: '#333',
-    padding: 10,
-    borderRadius: 8,
+  categoryTagsContainer: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    marginTop: 5,
+  },
+  categoryTag: {
+    fontSize: 10,
+    backgroundColor: '#e9ecef',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 10,
+    marginRight: 4,
+    marginTop: 4,
+    color: '#495057',
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
     alignItems: 'center',
   },
-  toastText: {
-    color: '#fff',
+  loadingText: {
+    marginTop: 10,
+    color: '#666',
+  },
+  emptyText: {
+    textAlign: 'center',
+    marginTop: 50,
+    color: '#666',
     fontSize: 16,
   },
 });

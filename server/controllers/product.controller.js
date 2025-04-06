@@ -1,62 +1,149 @@
 const Product = require("../models/product.model.js");
+const Category = require("../models/category.model.js");
 
 const createProduct = async (req, res) => {
     try {
-        const categories = req.body.categories ? req.body.categories.split(",") : [];
+        const { name, description, price, categories } = req.body;
+
+        // Validate required fields
+        if (!name || !description || !price) {
+            return res.status(400).json({ message: "Name, description and price are required" });
+        }
+
+        // Process categories - can be comma-separated string or array
+        let categoryArray = [];
+        if (categories) {
+            if (typeof categories === 'string') {
+                categoryArray = categories.split(',').map(cat => cat.trim());
+            } else if (Array.isArray(categories)) {
+                categoryArray = categories;
+            }
+        }
+
+        // Validate that categories exist in database
+        if (categoryArray.length > 0) {
+            const existingCategories = await Category.find({ name: { $in: categoryArray } });
+            const existingCategoryNames = existingCategories.map(cat => cat.name);
+
+            // Check if any categories don't exist
+            const invalidCategories = categoryArray.filter(cat => !existingCategoryNames.includes(cat));
+            if (invalidCategories.length > 0) {
+                return res.status(400).json({
+                    message: `The following categories don't exist: ${invalidCategories.join(', ')}`
+                });
+            }
+        }
+
+        // Create and save new product
+        // In the createProduct function
         const newProduct = new Product({
-            ...req.body,
-            categories: categories,
-            image: req.file.path, // Changed from 'images' to 'image' to match the schema
+            name,
+            title: name, // Add this line to set title equal to name
+            description,
+            price,
+            categories: categoryArray,
+            image: req.file ? req.file.path : null
         });
+
         await newProduct.save();
-        res.status(200).json({
+
+        res.status(201).json({
             message: "Product created successfully",
-            newProduct,
+            newProduct
         });
     } catch (error) {
-        console.log(error);
+        console.error("Error creating product:", error);
         res.status(500).json({
             message: "Error creating product",
-            error: error.message,
+            error: error.message
         });
     }
 };
 
 const updateProduct = async (req, res) => {
     try {
-        const updatedProduct = await Product.findByIdAndUpdate(
-            req.params.id,
-            {
-                $set: req.body,
-            },
-            {
-                new: true,
+        const { name, description, price, categories } = req.body;
+        const productId = req.params.id;
+
+        // Find product first to ensure it exists
+        const product = await Product.findById(productId);
+        if (!product) {
+            return res.status(404).json({ message: "Product not found" });
+        }
+
+        // Process categories if provided
+        let categoryArray = product.categories; // Default to existing categories
+        if (categories !== undefined) {
+            if (typeof categories === 'string') {
+                categoryArray = categories.split(',').map(cat => cat.trim());
+            } else if (Array.isArray(categories)) {
+                categoryArray = categories;
+            } else if (categories === null) {
+                categoryArray = [];
             }
+
+            // Validate that categories exist
+            if (categoryArray.length > 0) {
+                const existingCategories = await Category.find({ name: { $in: categoryArray } });
+                const existingCategoryNames = existingCategories.map(cat => cat.name);
+
+                const invalidCategories = categoryArray.filter(cat => !existingCategoryNames.includes(cat));
+                if (invalidCategories.length > 0) {
+                    return res.status(400).json({
+                        message: `The following categories don't exist: ${invalidCategories.join(', ')}`
+                    });
+                }
+            }
+        }
+
+        // Build update object
+        const updateData = {};
+        if (name !== undefined) updateData.name = name;
+        if (description !== undefined) updateData.description = description;
+        if (price !== undefined) updateData.price = price;
+        if (categories !== undefined) updateData.categories = categoryArray;
+        if (req.file) updateData.image = req.file.path;
+
+        // Update product
+        const updatedProduct = await Product.findByIdAndUpdate(
+            productId,
+            { $set: updateData },
+            { new: true }
         );
+
         res.status(200).json({
             message: "Product updated successfully",
-            updatedProduct,
+            updatedProduct
         });
     } catch (error) {
-        console.log(error);
+        console.error("Error updating product:", error);
         res.status(500).json({
             message: "Error updating product",
-            error: error.message,
+            error: error.message
         });
     }
 };
 
 const deleteProduct = async (req, res) => {
     try {
-        await Product.findByIdAndDelete(req.params.id);
+        const productId = req.params.id;
+
+        // Check if product exists
+        const product = await Product.findById(productId);
+        if (!product) {
+            return res.status(404).json({ message: "Product not found" });
+        }
+
+        await Product.findByIdAndDelete(productId);
+
         res.status(200).json({
-            message: "Product deleted successfully",
+            message: "Product deleted successfully"
         });
     } catch (error) {
-        console.log(error);
+        console.error("Error deleting product:", error);
         res.status(500).json({
             message: "Error deleting product",
-            error: error.message,
+            error: error.message
         });
     }
 };
@@ -64,46 +151,49 @@ const deleteProduct = async (req, res) => {
 const getProduct = async (req, res) => {
     try {
         const product = await Product.findById(req.params.id);
+
+        if (!product) {
+            return res.status(404).json({ message: "Product not found" });
+        }
+
         res.status(200).json({
             message: "Product fetched successfully",
-            product,
+            product
         });
     } catch (error) {
-        console.error(error);
+        console.error("Error fetching product:", error);
         res.status(500).json({
             message: "Error fetching product",
-            error: error.message,
+            error: error.message
         });
     }
 };
 
 const getProducts = async (req, res) => {
     try {
-        const qLatest = req.query.latest;
-        const qCategory = req.query.category;
+        const { latest, category } = req.query;
 
-        let product;
+        let products;
 
-        if (qLatest) {
-            product = await Product.find().sort({ createdAt: -1 }).limit(3);
-        } else if (qCategory) {
-            product = await Product.find({
-                categories: {
-                    $in: [qCategory],
-                },
+        if (latest) {
+            products = await Product.find().sort({ createdAt: -1 }).limit(parseInt(latest));
+        } else if (category) {
+            products = await Product.find({
+                categories: { $in: [category] }
             });
         } else {
-            product = await Product.find();
+            products = await Product.find();
         }
+
         res.status(200).json({
             message: "Products fetched successfully",
-            product,
+            products
         });
     } catch (error) {
-        console.error(error);
+        console.error("Error fetching products:", error);
         res.status(500).json({
             message: "Error fetching products",
-            error: error.message,
+            error: error.message
         });
     }
 };
@@ -113,5 +203,5 @@ module.exports = {
     updateProduct,
     deleteProduct,
     getProduct,
-    getProducts,
+    getProducts
 };
