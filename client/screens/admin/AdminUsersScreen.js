@@ -1,62 +1,94 @@
 import React, { useEffect, useState } from 'react';
-import { View, Text, StyleSheet, FlatList, ActivityIndicator, Alert, TouchableOpacity } from 'react-native';
+import { 
+  View, Text, StyleSheet, FlatList, ActivityIndicator, Alert, 
+  TouchableOpacity, RefreshControl
+} from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
-import axios from 'axios';
+import { useDispatch, useSelector } from 'react-redux';
+import { 
+  fetchUsers, 
+  deleteUserById, 
+  clearUserError 
+} from '../../redux/slices/userSlice';
 
 const AdminUsersScreen = () => {
-  const [users, setUsers] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const dispatch = useDispatch();
+  const { users, isLoading, error, deleteLoading } = useSelector((state) => state.users);
+  const [refreshing, setRefreshing] = useState(false);
 
-  // Fetch users from the backend
-  const fetchUsers = async () => {
-    try {
-      const response = await axios.get('http://192.168.55.100:5000/api/v1/users'); // Replace with your backend URL
-      setUsers(response.data.data); // Assuming the response contains a `data` field with users
-    } catch (error) {
-      console.error('Error fetching users:', error.message);
-      if (error.response) {
-        console.error('Response data:', error.response.data);
-        console.error('Response status:', error.response.status);
-      }
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  // Delete user from the backend and update the state
-  const deleteUser = async (userId) => {
-    try {
-      await axios.delete(`http://192.168.55.100:5000/api/v1/users/delete/${userId}`); // Replace with your backend URL
-      setUsers((prevUsers) => prevUsers.filter((user) => user._id !== userId)); // Remove user from state
-      Alert.alert('Success', 'User deleted successfully');
-    } catch (error) {
-      console.error('Error deleting user:', error.message);
-      Alert.alert('Error', 'Failed to delete user');
-    }
-  };
-
+  // Fetch users when component mounts
   useEffect(() => {
-    fetchUsers();
-  }, []);
+    dispatch(fetchUsers());
+  }, [dispatch]);
 
+  // Handle errors
+  useEffect(() => {
+    if (error) {
+      Alert.alert('Error', error);
+      dispatch(clearUserError());
+    }
+  }, [error, dispatch]);
+
+  // Handle refresh
+  const handleRefresh = () => {
+    setRefreshing(true);
+    dispatch(fetchUsers())
+      .finally(() => setRefreshing(false));
+  };
+
+  // Handle delete user
+  const handleDeleteUser = (userId, username) => {
+    Alert.alert(
+      'Delete User',
+      `Are you sure you want to delete ${username}?`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        { 
+          text: 'Delete', 
+          style: 'destructive',
+          onPress: () => {
+            dispatch(deleteUserById(userId))
+              .unwrap()
+              .then(() => {
+                Alert.alert('Success', 'User deleted successfully');
+              })
+              .catch((error) => {
+                console.error('Error deleting user:', error);
+              });
+          }
+        }
+      ]
+    );
+  };
+
+  // Render user item
   const renderItem = ({ item }) => (
     <View style={styles.userItem}>
       <View style={styles.userDetails}>
         <Text style={styles.userName}>{item.username}</Text>
         <Text style={styles.userEmail}>{item.email}</Text>
+        <View style={styles.badgeContainer}>
+          {item.isAdmin && (
+            <View style={styles.adminBadge}>
+              <Text style={styles.badgeText}>Admin</Text>
+            </View>
+          )}
+        </View>
       </View>
       <View style={styles.userActions}>
-        <TouchableOpacity onPress={() => deleteUser(item._id)}>
+        <TouchableOpacity onPress={() => handleDeleteUser(item._id, item.username)}>
           <MaterialIcons name="delete" size={24} color="#FF4D4D" />
         </TouchableOpacity>
       </View>
     </View>
   );
 
-  if (loading) {
+  // Show loading state
+  if (isLoading && !refreshing) {
     return (
-      <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#007BFF" />
+      <View style={styles.centeredContainer}>
+        <ActivityIndicator size="large" color="#0066CC" />
+        <Text style={styles.loadingText}>Loading users...</Text>
       </View>
     );
   }
@@ -64,11 +96,31 @@ const AdminUsersScreen = () => {
   return (
     <View style={styles.container}>
       <Text style={styles.title}>Users Management</Text>
+      
+      {deleteLoading && (
+        <View style={styles.updateLoadingBanner}>
+          <ActivityIndicator size="small" color="#fff" />
+          <Text style={styles.updateLoadingText}>Deleting user...</Text>
+        </View>
+      )}
+      
       <FlatList
         data={users}
         renderItem={renderItem}
-        keyExtractor={(item) => item._id} // Use MongoDB's `_id` as the key
+        keyExtractor={(item) => item._id}
         contentContainerStyle={styles.listContainer}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={handleRefresh}
+            colors={['#0066CC']}
+          />
+        }
+        ListEmptyComponent={
+          <View style={styles.emptyContainer}>
+            <Text style={styles.emptyText}>No users found</Text>
+          </View>
+        }
       />
     </View>
   );
@@ -86,8 +138,20 @@ const styles = StyleSheet.create({
     marginBottom: 20,
     color: '#333',
   },
+  centeredContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  loadingText: {
+    marginTop: 10,
+    fontSize: 16,
+    color: '#666',
+  },
   listContainer: {
     paddingBottom: 20,
+    flexGrow: 1,
   },
   userItem: {
     flexDirection: 'row',
@@ -116,14 +180,47 @@ const styles = StyleSheet.create({
     color: '#666',
     marginTop: 4,
   },
+  badgeContainer: {
+    flexDirection: 'row',
+    marginTop: 6,
+  },
+  adminBadge: {
+    backgroundColor: '#007BFF',
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 12,
+  },
+  badgeText: {
+    color: '#fff',
+    fontSize: 12,
+    fontWeight: '500',
+  },
   userActions: {
     flexDirection: 'row',
     alignItems: 'center',
   },
-  loadingContainer: {
+  updateLoadingBanner: {
+    backgroundColor: '#0066CC',
+    padding: 10,
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 10,
+    borderRadius: 5,
+  },
+  updateLoadingText: {
+    color: 'white',
+    marginLeft: 10,
+  },
+  emptyContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
+    paddingVertical: 50,
+  },
+  emptyText: {
+    fontSize: 16,
+    color: '#666',
   },
 });
 

@@ -107,6 +107,63 @@ const getOrders = async (req, res) => {
     }
 };
 
+
+// Add or update this function
+// Add or update the updateOrderStatus function
+// Add this function to your order controller
+// Add or update this function in your order controller
+const updateOrderStatus = async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { status } = req.body;
+      
+      console.log(`[Server] Updating order ${id} status to: ${status}`);
+      
+      // Validate the status value
+      const validStatuses = ['pending', 'processing', 'shipped', 'delivered', 'cancelled'];
+      if (!validStatuses.includes(status)) {
+        return res.status(400).json({
+          success: false,
+          message: 'Invalid status value'
+        });
+      }
+      
+      // Find the order first to check if it exists
+      const order = await Order.findById(id);
+      
+      if (!order) {
+        console.log(`[Server] Order not found: ${id}`);
+        return res.status(404).json({
+          success: false,
+          message: 'Order not found'
+        });
+      }
+      
+      // Update the order status
+      order.status = status;
+      await order.save();
+      
+      console.log(`[Server] Order ${id} status updated to: ${status}`);
+      
+      // Get the updated order with populated user data
+      const updatedOrder = await Order.findById(id).populate('userId', 'name email');
+      
+      return res.status(200).json({
+        success: true,
+        message: `Order status updated to ${status}`,
+        order: updatedOrder
+      });
+      
+    } catch (error) {
+      console.error('[Server] Order status update error:', error);
+      return res.status(500).json({
+        success: false,
+        message: 'Server error updating order status'
+      });
+    }
+  };
+  
+
 const getMonthlyIncome = async (req, res) => {
     try {
         const date = new Date();
@@ -152,4 +209,6 @@ module.exports = {
     getUserOrder,
     getOrders,
     getMonthlyIncome,
+    updateOrderStatus,
+    getUserOrder,
 };

@@ -166,6 +166,7 @@ function AdminDrawerNavigator() {
       }}
     >
       <AdminDrawer.Screen name="Dashboard" component={AdminDashboardScreen} />
+      <AdminDrawer.Screen name="Users" component={AdminUsersScreen} />
       <AdminDrawer.Screen name="Products" component={AdminProductsScreen} />
       <AdminDrawer.Screen name="Orders" component={AdminOrdersScreen} />
       <AdminDrawer.Screen name="Categories" component={AdminCategoriesScreen} />

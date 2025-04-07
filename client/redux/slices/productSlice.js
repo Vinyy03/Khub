@@ -1,5 +1,6 @@
 import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
 import axiosInstance from '../../utils/axiosConfig';
+import { cloudinaryConfig, CLOUDINARY_URL } from '../../utils/cloudinaryConfig';
 
 // Fetch all products
 export const fetchProducts = createAsyncThunk(
@@ -36,34 +37,63 @@ export const createProduct = createAsyncThunk(
   'products/create',
   async (productData, { rejectWithValue }) => {
     try {
-      // Handle form data for image upload
-      const formData = new FormData();
+      console.log('Creating product with data:', productData);
       
-      // Add image if available
+      let imageUrl = productData.image;
+      
+      // Upload image to Cloudinary first if it's a local file
       if (productData.image && !productData.image.startsWith('http')) {
+        console.log('Uploading image to Cloudinary:', productData.image);
+        
+        const formData = new FormData();
         const uriParts = productData.image.split('.');
         const fileType = uriParts[uriParts.length - 1];
         
-        formData.append('image', {
+        // Append required Cloudinary parameters
+        formData.append('file', {
           uri: productData.image,
-          name: `product.${fileType}`,
+          name: `product-${Date.now()}.${fileType}`,
           type: `image/${fileType}`,
         });
+        formData.append('upload_preset', cloudinaryConfig.uploadPreset);
+        formData.append('cloud_name', cloudinaryConfig.cloudName);
+        formData.append('api_key', cloudinaryConfig.apiKey);
+        
+        // Upload to Cloudinary
+        const uploadResponse = await fetch(CLOUDINARY_URL, {
+          method: 'POST',
+          body: formData,
+          headers: {
+            'Accept': 'application/json',
+            'Content-Type': 'multipart/form-data',
+          },
+        });
+        
+        const uploadResult = await uploadResponse.json();
+        if (uploadResponse.ok) {
+          imageUrl = uploadResult.secure_url;
+          console.log('Image uploaded to Cloudinary:', imageUrl);
+        } else {
+          console.error('Cloudinary upload failed:', uploadResult);
+          return rejectWithValue('Failed to upload image: ' + (uploadResult.error?.message || 'Unknown error'));
+        }
       }
       
-      // Add other fields
+      // Now create product with FormData instead of JSON
+      const formData = new FormData();
       formData.append('name', productData.name);
       formData.append('description', productData.description);
       formData.append('price', productData.price.toString());
+      formData.append('image', imageUrl); // Send the Cloudinary URL
       
-      // Add categories (if array, convert to comma-separated string)
-      if (productData.categories) {
-        if (Array.isArray(productData.categories)) {
-          formData.append('categories', productData.categories.join(','));
-        } else {
-          formData.append('categories', productData.categories);
-        }
+      // Add categories
+      if (Array.isArray(productData.categories)) {
+        formData.append('categories', productData.categories.join(','));
+      } else if (productData.categories) {
+        formData.append('categories', productData.categories);
       }
+      
+      console.log('Sending product data to API with image URL:', imageUrl);
       
       const response = await axiosInstance.post('/api/v1/products', formData, {
         headers: {
@@ -71,8 +101,11 @@ export const createProduct = createAsyncThunk(
         },
       });
       
+      console.log('Product created successfully:', response.data);
       return response.data.newProduct;
     } catch (error) {
+      console.error('Create product error:', error);
+      console.error('Error response:', error.response?.data);
       return rejectWithValue(
         error.response?.data?.message || 'Failed to create product.'
       );
@@ -81,29 +114,65 @@ export const createProduct = createAsyncThunk(
 );
 
 // Update a product
+// Update a product
 export const updateProduct = createAsyncThunk(
   'products/update',
   async ({ id, productData }, { rejectWithValue }) => {
     try {
-      // Handle form data for image upload
-      const formData = new FormData();
+      console.log('Updating product with data:', productData);
       
-      // Add image if it's a new file (not a URL)
+      let imageUrl = productData.image;
+      
+      // Upload image to Cloudinary first if it's a local file
       if (productData.image && !productData.image.startsWith('http')) {
+        console.log('Uploading image to Cloudinary for update:', productData.image);
+        
+        const formData = new FormData();
         const uriParts = productData.image.split('.');
         const fileType = uriParts[uriParts.length - 1];
         
-        formData.append('image', {
+        // Append required Cloudinary parameters
+        formData.append('file', {
           uri: productData.image,
-          name: `product.${fileType}`,
+          name: `product-${Date.now()}.${fileType}`,
           type: `image/${fileType}`,
         });
+        formData.append('upload_preset', cloudinaryConfig.uploadPreset);
+        formData.append('cloud_name', cloudinaryConfig.cloudName);
+        formData.append('api_key', cloudinaryConfig.apiKey);
+        
+        // Upload to Cloudinary
+        const uploadResponse = await fetch(CLOUDINARY_URL, {
+          method: 'POST',
+          body: formData,
+          headers: {
+            'Accept': 'application/json',
+            'Content-Type': 'multipart/form-data',
+          },
+        });
+        
+        const uploadResult = await uploadResponse.json();
+        if (uploadResponse.ok) {
+          imageUrl = uploadResult.secure_url;
+          console.log('Image uploaded to Cloudinary for update:', imageUrl);
+        } else {
+          console.error('Cloudinary upload failed:', uploadResult);
+          return rejectWithValue('Failed to upload image: ' + (uploadResult.error?.message || 'Unknown error'));
+        }
       }
       
-      // Add other fields
+      // Now create form data for the API request
+      const formData = new FormData();
+      
+      // Add all fields to the form data
       if (productData.name !== undefined) formData.append('name', productData.name);
       if (productData.description !== undefined) formData.append('description', productData.description);
       if (productData.price !== undefined) formData.append('price', productData.price.toString());
+      
+      // Send the Cloudinary URL or existing URL as image
+      if (imageUrl) {
+        formData.append('image', imageUrl);
+      }
       
       // Add categories (if array, convert to comma-separated string)
       if (productData.categories !== undefined) {
@@ -114,14 +183,19 @@ export const updateProduct = createAsyncThunk(
         }
       }
       
+      console.log('Sending product update data to API with image URL:', imageUrl);
+      
       const response = await axiosInstance.put(`/api/v1/products/${id}`, formData, {
         headers: {
           'Content-Type': 'multipart/form-data',
         },
       });
       
+      console.log('Product updated successfully:', response.data);
       return response.data.updatedProduct;
     } catch (error) {
+      console.error('Update product error:', error);
+      console.error('Error response:', error.response?.data);
       return rejectWithValue(
         error.response?.data?.message || 'Failed to update product.'
       );

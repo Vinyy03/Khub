@@ -3,13 +3,15 @@ import authReducer from './slices/authSlice';
 import categoryReducer from './slices/categorySlice';
 import productReducer from './slices/productSlice'; // Add import
 import orderReducer from './slices/orderSlice';
+import userReducer from './slices/userSlice';
 
 const store = configureStore({
   reducer: {
     auth: authReducer,
     categories: categoryReducer,
     products: productReducer, 
-    order: orderReducer,// Add product reducer
+    order: orderReducer,
+    users: userReducer,// Add product reducer
     // Add other reducers here as your app grows
   },
   middleware: (getDefaultMiddleware) =>

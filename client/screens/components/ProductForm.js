@@ -100,7 +100,9 @@ const ProductForm = ({ initialValues = {}, onSubmit, isSubmitting }) => {
       image,
     };
     
-    onSubmit(productData);
+  console.log('Submitting product data:', JSON.stringify(productData, null, 2));
+  
+  onSubmit(productData);
   };
   
   return (

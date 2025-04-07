@@ -17,17 +17,12 @@ export const createOrder = createAsyncThunk(
 );
 
 // Get user orders
-// Update the getUserOrders function
 export const getUserOrders = createAsyncThunk(
     'order/getUserOrders',
     async (_, { rejectWithValue }) => {
         try {
             const response = await axiosInstance.get('/api/v1/orders/user');
-
-            // Debug logging
             console.log('Orders API response:', response.data);
-
-            // Return the data in the expected format
             return response.data;
         } catch (error) {
             console.error('Error fetching orders:', error);
@@ -38,11 +33,48 @@ export const getUserOrders = createAsyncThunk(
     }
 );
 
+// Get all orders (admin only)
+export const getAllOrders = createAsyncThunk(
+    'order/getAllOrders',
+    async (_, { rejectWithValue }) => {
+        try {
+            const response = await axiosInstance.get('/api/v1/orders/admin');
+            return response.data;
+        } catch (error) {
+            return rejectWithValue(
+                error.response?.data?.message || 'Failed to fetch orders'
+            );
+        }
+    }
+);
+
+// Update order status (admin only)
+// Update the updateOrderStatus thunk to better handle errors
+export const updateOrderStatus = createAsyncThunk(
+    'order/updateStatus',
+    async ({ orderId, status }, { rejectWithValue }) => {
+      try {
+        console.log(`Sending request to update order ${orderId} to ${status}`);
+        const response = await axiosInstance.patch(`/api/v1/orders/${orderId}/status`, { status });
+        console.log('Update order status response:', response.data);
+        return response.data;
+      } catch (error) {
+        console.error('Update order status error:', error.response?.data || error.message);
+        return rejectWithValue(
+          error.response?.data?.message || 
+          error.response?.data || 
+          error.message || 
+          'Failed to update order status'
+        );
+      }
+    }
+  );
 
 const initialState = {
     orders: [],
     currentOrder: null,
     isLoading: false,
+    updateLoading: false,
     success: false,
     error: null,
 };
@@ -83,11 +115,43 @@ const orderSlice = createSlice({
             })
             .addCase(getUserOrders.fulfilled, (state, action) => {
                 state.isLoading = false;
-                // Check what structure the API returns
                 state.orders = action.payload.orders || action.payload || [];
             })
             .addCase(getUserOrders.rejected, (state, action) => {
                 state.isLoading = false;
+                state.error = action.payload;
+            })
+
+            // Get all orders (admin) cases
+            .addCase(getAllOrders.pending, (state) => {
+                state.isLoading = true;
+                state.error = null;
+            })
+            .addCase(getAllOrders.fulfilled, (state, action) => {
+                state.isLoading = false;
+                state.orders = action.payload.orders || action.payload || [];
+            })
+            .addCase(getAllOrders.rejected, (state, action) => {
+                state.isLoading = false;
+                state.error = action.payload;
+            })
+
+            // Update order status cases
+            .addCase(updateOrderStatus.pending, (state) => {
+                state.updateLoading = true;
+                state.error = null;
+            })
+            .addCase(updateOrderStatus.fulfilled, (state, action) => {
+                state.updateLoading = false;
+                // Update the order in the orders array
+                const updatedOrder = action.payload.order;
+                state.orders = state.orders.map(order => 
+                    order._id === updatedOrder._id ? updatedOrder : order
+                );
+                state.success = true;
+            })
+            .addCase(updateOrderStatus.rejected, (state, action) => {
+                state.updateLoading = false;
                 state.error = action.payload;
             });
     },

@@ -3,9 +3,9 @@ const { verifyToken, verifyAdmin } = require('../middleware/verifyToken.js');
 
 const router = require('express').Router();
 
-router.get("/get-users", (req, res) => {
-    res.send("Get user data")
-});
+// router.get("/get-users", (req, res) => {
+//     res.send("Get user data")
+// });
 
 router.put("/update/:id", verifyToken, updateUser);
 router.delete("/delete/:id", verifyAdmin, deleteUser);
